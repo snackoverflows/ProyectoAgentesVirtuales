@@ -1,0 +1,120 @@
+{
+  "text": "Se generaron 3 horarios válidos.",
+  "schedules": [
+    {
+      "meta": {
+        "raw_score": 1998000000,
+        "distinct_courses": 2,
+        "distinct_days": 2
+      },
+      "blocks": [
+        {
+          "day": "Martes",
+          "start": "13:00",
+          "end": "17:00",
+          "course": "Humanidades",
+          "group": "B",
+          "professor": "Juan Perez",
+          "tags": []
+        },
+        {
+          "day": "Viernes",
+          "start": "13:00",
+          "end": "17:00",
+          "course": "Humanidades",
+          "group": "B",
+          "professor": "Juan Perez",
+          "tags": []
+        },
+        {
+          "day": "Martes",
+          "start": "08:00",
+          "end": "10:00",
+          "course": "Artística",
+          "group": "Coro",
+          "professor": "Luis",
+          "tags": []
+        }
+      ]
+    },
+    {
+      "meta": {
+        "raw_score": 1998000000,
+        "distinct_courses": 2,
+        "distinct_days": 2
+      },
+      "blocks": [
+        {
+          "day": "Martes",
+          "start": "13:00",
+          "end": "17:00",
+          "course": "Humanidades",
+          "group": "D",
+          "professor": "Ramira Lopez",
+          "tags": []
+        },
+        {
+          "day": "Viernes",
+          "start": "13:00",
+          "end": "17:00",
+          "course": "Humanidades",
+          "group": "D",
+          "professor": "Ramira Lopez",
+          "tags": []
+        },
+        {
+          "day": "Martes",
+          "start": "08:00",
+          "end": "10:00",
+          "course": "Artística",
+          "group": "Coro",
+          "professor": "Luis",
+          "tags": []
+        }
+      ]
+    },
+    {
+      "meta": {
+        "raw_score": 1997000000,
+        "distinct_courses": 2,
+        "distinct_days": 3
+      },
+      "blocks": [
+        {
+          "day": "Lunes",
+          "start": "07:00",
+          "end": "11:00",
+          "course": "Humanidades",
+          "group": "A",
+          "professor": "Juan Perez",
+          "tags": []
+        },
+        {
+          "day": "Jueves",
+          "start": "07:00",
+          "end": "11:00",
+          "course": "Humanidades",
+          "group": "A",
+          "professor": "Juan Perez",
+          "tags": []
+        },
+        {
+          "day": "Martes",
+          "start": "08:00",
+          "end": "10:00",
+          "course": "Artística",
+          "group": "Coro",
+          "professor": "Luis",
+          "tags": []
+        }
+      ]
+    }
+  ],
+  "warnings": [],
+  "execution_params": {
+    "max_per_day": null,
+    "max_per_day_source": "unset",
+    "top_n": 3,
+    "top_n_source": "default"
+  }
+}

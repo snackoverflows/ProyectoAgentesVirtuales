@@ -1,0 +1,367 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Guía de Procedimiento del Investigador - Agente de Horarios</title>
+    <style>
+        :root {
+            --primary: #0F3B82;
+            --primary-light: #2A5BAA;
+            --bg-body: #F4F7F6;
+            --bg-card: #FFFFFF;
+            --text-main: #333333;
+            --text-muted: #666666;
+            --border-color: #E2E8F0;
+            --radius: 8px;
+            --shadow: 0 4px 6px rgba(0,0,0,0.05);
+            --warning-bg: #FFF7ED;
+            --warning-border: #FB923C;
+            --success-bg: #F0FDF4;
+            --success-border: #22C55E;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
+            background-color: var(--bg-body);
+            color: var(--text-main);
+            line-height: 1.6;
+            padding: 40px 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .container { max-width: 900px; width: 100%; }
+        .card {
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            box-shadow: var(--shadow);
+            padding: 40px;
+            border: 1px solid var(--border-color);
+        }
+        h1 {
+            color: var(--primary);
+            font-size: 1.8rem;
+            margin-bottom: 8px;
+            border-bottom: 2px solid var(--primary-light);
+            padding-bottom: 10px;
+        }
+        h2 { color: var(--primary-light); font-size: 1.3rem; margin-top: 30px; margin-bottom: 15px; }
+        h3 { color: var(--text-main); font-size: 1.1rem; margin-top: 20px; margin-bottom: 10px; }
+        p { margin-bottom: 15px; }
+        ul, ol { margin-bottom: 15px; padding-left: 20px; }
+        li { margin-bottom: 8px; }
+        table { width: 100%; border-collapse: collapse; margin: 15px 0 25px 0; font-size: 0.95rem; }
+        th, td { border: 1px solid var(--border-color); padding: 10px; vertical-align: top; }
+        th { background-color: #EAF1FB; color: var(--primary); text-align: left; }
+        .metadata-box {
+            background-color: #F8FAFC;
+            border-left: 4px solid var(--primary);
+            padding: 15px;
+            margin-bottom: 30px;
+            border-radius: 0 var(--radius) var(--radius) 0;
+        }
+        .metadata-box p { margin-bottom: 5px; font-size: 0.95rem; }
+        .metadata-box strong { color: var(--primary); }
+        .quote {
+            background-color: #F1F5F9;
+            font-style: italic;
+            padding: 15px;
+            border-radius: var(--radius);
+            margin: 15px 0;
+            color: #475569;
+        }
+        .warning-box {
+            background-color: var(--warning-bg);
+            border-left: 4px solid var(--warning-border);
+            padding: 15px;
+            margin: 15px 0 25px 0;
+            border-radius: 0 var(--radius) var(--radius) 0;
+        }
+        .success-box {
+            background-color: var(--success-bg);
+            border-left: 4px solid var(--success-border);
+            padding: 15px;
+            margin: 15px 0 25px 0;
+            border-radius: 0 var(--radius) var(--radius) 0;
+        }
+        .checkbox-list { list-style: none; padding-left: 0; }
+        .checkbox-list li { display: flex; align-items: flex-start; margin-bottom: 10px; }
+        .checkbox-list li::before { content: '☐'; font-size: 1.2rem; margin-right: 10px; color: var(--primary-light); line-height: 1.2; }
+        .field-line { display: inline-block; min-width: 160px; border-bottom: 1px solid #94A3B8; margin: 0 4px; }
+        .small { font-size: 0.9rem; color: var(--text-muted); }
+        .footer { margin-top: 35px; font-size: 0.85rem; color: var(--text-muted); text-align: center; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h1>Guía de Procedimiento del Investigador</h1>
+            <p style="font-size: 1.1rem; color: var(--text-muted); margin-bottom: 25px;">Evaluación de un agente virtual corporizado para planificación personalizada de horarios académicos</p>
+
+            <div class="metadata-box">
+                <p><strong>Estudio:</strong> Diseño y evaluación de un agente virtual corporizado basado en avatar robótico para apoyar la planificación personalizada de horarios académicos.</p>
+                <p><strong>Curso:</strong> PF-3311 · Agentes Virtuales Inteligentes · I Ciclo 2026.</p>
+                <p><strong>Investigador:</strong> Dean Josué Vargas Delgado · B98194.</p>
+                <p><strong>Unidad Ejecutora:</strong> Universidad de Costa Rica · Postgrado en Computación e Informática · Maestría Profesional en Computación e Informática.</p>
+                <p><strong>Tipo de sesión:</strong> Sesión única, controlada, con diseño intra-sujetos y contrabalanceo simple.</p>
+            </div>
+
+            <h2>1. Resumen del estudio y preparación</h2>
+            <p>Esta guía establece el protocolo que debe seguir el investigador durante la sesión experimental. El estudio compara dos modalidades para construir un horario académico de tres cursos: una modalidad manual sin agente y una modalidad asistida por un agente virtual corporizado desarrollado en Unity. Cada participante realizará ambas condiciones, pero el orden se asignará de forma balanceada para reducir efectos de aprendizaje o familiaridad.</p>
+
+            <h3>1.1 Condiciones del estudio</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Condición</th>
+                        <th>Descripción</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>Condición A: Agente virtual corporizado</strong></td>
+                        <td>La persona participante utiliza un agente virtual visible en Unity, con voz bidireccional, avatar robótico, expresiones, lip-sync y animaciones activadas mediante metadatos del LLM. El agente recibe cursos y restricciones, genera horarios y permite correcciones o reinicio del flujo.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Condición B: Planificación manual sin agente</strong></td>
+                        <td>La persona participante construye el horario usando la guía de cursos asignada y las herramientas que normalmente usaría, como Excel, papel, formulario simple, HorariU, Coolideas u otra herramienta de su preferencia. No hay asistencia conversacional ni validación automática.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>1.2 Diseño de contrabalanceo</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Grupo</th>
+                        <th>Primera tarea</th>
+                        <th>Segunda tarea</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>G1</strong></td>
+                        <td>Condición B: Manual + Guía A</td>
+                        <td>Condición A: Agente + Guía B</td>
+                    </tr>
+                    <tr>
+                        <td><strong>G2</strong></td>
+                        <td>Condición A: Agente + Guía A</td>
+                        <td>Condición B: Manual + Guía B</td>
+                    </tr>
+                </tbody>
+            </table>
+            <p>La Guía A corresponde a la versión original de la guía de cursos. La Guía B corresponde a una versión modificada o shuffled que conserva una dificultad equivalente, pero cambia parcialmente horarios y/o profesores para reducir efectos de memorización.</p>
+
+            <h3>1.3 Restricciones objetivo</h3>
+            <p>En cada ronda se asignará una restricción objetivo breve e independiente de la guía utilizada. El investigador debe indicar una restricción distinta en cada condición.</p>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Restricción</th>
+                        <th>Descripción</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><strong>R1</strong></td>
+                        <td>Construir un horario en el que todas las clases sean en la mañana.</td>
+                    </tr>
+                    <tr>
+                        <td><strong>R2</strong></td>
+                        <td>Construir un horario asistiendo a la universidad la menor cantidad de días posible.</td>
+                    </tr>
+                </tbody>
+            </table>
+
+            <h3>1.4 Checklist de materiales</h3>
+            <ul class="checkbox-list">
+                <li>Consentimiento informado disponible en formato físico o digital.</li>
+                <li>Computadora configurada con la aplicación de Unity y el agente virtual.</li>
+                <li>Audífonos con micrófono funcional y desinfectados.</li>
+                <li>Guía A y Guía B de cursos impresas o disponibles en pantalla.</li>
+                <li>Herramienta manual disponible para la condición baseline, por ejemplo Excel, hoja de cálculo o formulario simple.</li>
+                <li>Tabla de asignación manual de participantes a G1 o G2.</li>
+                <li>Enlaces a Google Forms para cuestionario inicial, preguntas abiertas y cuestionarios post-interacción.</li>
+                <li>Archivo CSV o mecanismo de registro para logs de interacción del agente.</li>
+                <li>Bitácora del investigador para registrar ID anónimo, grupo asignado, guía utilizada y observaciones relevantes.</li>
+            </ul>
+
+            <h2>2. Inducción y bienvenida</h2>
+
+            <h3>2.1 Identificación anónima del participante</h3>
+            <p>Antes de iniciar, asigne un ID anónimo al participante. No utilice el nombre legal en los archivos de datos, logs, cuestionarios ni bitácoras de análisis.</p>
+            <div class="metadata-box">
+                <p><strong>ID del participante:</strong> <span class="field-line"></span></p>
+                <p><strong>Grupo asignado:</strong> ☐ G1 &nbsp;&nbsp; ☐ G2</p>
+                <p><strong>Restricción de primera ronda:</strong> ☐ R1 &nbsp;&nbsp; ☐ R2</p>
+                <p><strong>Restricción de segunda ronda:</strong> ☐ R1 &nbsp;&nbsp; ☐ R2</p>
+                <p><strong>Fecha:</strong> <span class="field-line"></span></p>
+                <p><strong>Investigador:</strong> <span class="field-line"></span></p>
+            </div>
+
+            <h3>2.2 Consentimiento informado</h3>
+            <p><strong>Saludo:</strong></p>
+            <div class="quote">"Hola, muchas gracias por participar. Mi nombre es Dean Josué Vargas Delgado y estaré a cargo de guiar la sesión de hoy. El objetivo del estudio es evaluar distintas formas de apoyo para construir horarios académicos."</div>
+
+            <p><strong>Lectura o entrega del consentimiento:</strong></p>
+            <div class="quote">"Antes de iniciar, vamos a revisar el consentimiento informado. Su participación es voluntaria. Puede retirarse del estudio en cualquier momento, sin ninguna consecuencia. Los datos se registrarán mediante un ID anónimo y no se almacenará su nombre en los archivos de análisis."</div>
+
+            <p><strong>Pregunta de aceptación obligatoria:</strong></p>
+            <div class="quote">"Después de revisar el consentimiento informado, ¿acepta participar voluntariamente en este estudio?"</div>
+
+            <ul class="checkbox-list">
+                <li>El participante acepta participar voluntariamente.</li>
+                <li>El participante comprende que puede retirarse en cualquier momento.</li>
+                <li>El participante comprende que los datos se analizarán de forma anónima.</li>
+            </ul>
+
+            <h3>2.3 Cuestionario inicial</h3>
+            <p>Solicite al participante completar un cuestionario breve de perfil inicial antes de iniciar las tareas. Este cuestionario puede aplicarse en Google Forms.</p>
+            <ul>
+                <li>Experiencia previa construyendo horarios académicos.</li>
+                <li>Frecuencia de uso de herramientas como Excel, HorariU, generadores de horarios o formularios similares.</li>
+                <li>Experiencia previa con asistentes virtuales o sistemas conversacionales.</li>
+                <li>Nivel general de familiaridad con tecnología.</li>
+            </ul>
+
+            <h2>3. Asignación del grupo y preparación de condiciones</h2>
+            <p>El investigador asignará manualmente al participante a G1 o G2 procurando mantener balanceada la cantidad de participantes por grupo. Esta asignación debe realizarse antes de iniciar la primera tarea y registrarse en la bitácora.</p>
+
+            <div class="warning-box">
+                <p><strong>Importante:</strong> No indique al participante que una modalidad es esperada, superior, más moderna o más eficiente. Ambas condiciones deben presentarse como formas válidas de resolver la misma tarea.</p>
+            </div>
+
+            <h3>3.1 Preparación según grupo</h3>
+            <ul>
+                <li><strong>Si el participante es G1:</strong> prepare primero la condición manual con Guía A. Luego prepare la condición con agente usando Guía B.</li>
+                <li><strong>Si el participante es G2:</strong> prepare primero la condición con agente usando Guía A. Luego prepare la condición manual con Guía B.</li>
+            </ul>
+
+            <h2>4. Fase experimental: primera condición</h2>
+
+            <h3>4.1 Instrucciones neutrales para condición manual</h3>
+            <p>Utilice estas instrucciones solamente si la primera condición corresponde a la modalidad manual.</p>
+            <div class="quote">"A continuación, deberá construir una opción de horario académico de tres cursos utilizando la guía de cursos proporcionada. Puede usar la herramienta que normalmente utilizaría para organizar un horario, como Excel, papel, una hoja de cálculo, HorariU, Coolideas u otra opción de su preferencia. El objetivo es construir un horario que usted considere adecuado según la restricción indicada por el investigador. Cuando considere que terminó, avíseme."</div>
+
+            <h3>4.2 Instrucciones neutrales para condición con agente</h3>
+            <p>Utilice estas instrucciones solamente si la primera condición corresponde a la modalidad con agente.</p>
+            <div class="quote">"A continuación, deberá construir una opción de horario académico de tres cursos utilizando la interfaz con agente virtual. Puede indicar los cursos y restricciones necesarias para que el sistema genere opciones de horario. También puede consultar las secciones de horarios generados, cursos añadidos, restricciones o ayuda básica. Cuando considere que terminó, avíseme."</div>
+
+            <h3>4.3 Registro durante la tarea</h3>
+            <ul class="checkbox-list">
+                <li>Registrar hora de inicio de la tarea.</li>
+                <li>Registrar condición utilizada: ☐ Agente &nbsp;&nbsp; ☐ Manual.</li>
+                <li>Registrar guía utilizada: ☐ Guía A &nbsp;&nbsp; ☐ Guía B.</li>
+                <li>Registrar restricción asignada: ☐ R1 &nbsp;&nbsp; ☐ R2.</li>
+                <li>En condición con agente, verificar que los logs se guarden en CSV bajo el ID anónimo del participante.</li>
+                <li>Registrar hora de finalización cuando el participante indique que completó la tarea.</li>
+            </ul>
+
+            <h3>4.4 Preguntas abiertas después de la primera condición</h3>
+            <p>Antes de aplicar encuestas estandarizadas, realice preguntas abiertas breves para capturar impresiones espontáneas. Las respuestas pueden recogerse en Google Forms o mediante notas del investigador.</p>
+            <div class="metadata-box">
+                <p><strong>Preguntas abiertas:</strong></p>
+                <ul>
+                    <li>¿Cómo describiría el proceso de construir el horario en esta modalidad?</li>
+                    <li>¿Qué fue lo más fácil durante la tarea?</li>
+                    <li>¿Qué fue lo más difícil durante la tarea?</li>
+                    <li>¿Qué estrategia utilizó para organizar o decidir el horario?</li>
+                    <li>¿Qué mejoraría de esta modalidad?</li>
+                </ul>
+            </div>
+
+            <h3>4.5 Cuestionarios post-interacción de la primera condición</h3>
+            <p>Después de las preguntas abiertas, solicite al participante completar los instrumentos post-interacción correspondientes.</p>
+            <ul>
+                <li>SUS para evaluar usabilidad percibida.</li>
+                <li>NASA-TLX para evaluar carga mental percibida.</li>
+                <li>Escala breve de satisfacción y confianza, si se incluye como cuestionario complementario.</li>
+            </ul>
+
+            <h2>5. Fase experimental: segunda condición</h2>
+            <p>Prepare la segunda condición según el grupo asignado. Recuerde cambiar también la guía de cursos para reducir el efecto de aprendizaje.</p>
+
+            <h3>5.1 Instrucciones para iniciar la segunda condición</h3>
+            <div class="quote">"Ahora realizará una segunda tarea de planificación de horario con otra modalidad y una guía distinta. El objetivo sigue siendo construir una opción de horario de tres cursos que usted considere adecuada según la nueva restricción indicada por el investigador. Cuando considere que terminó, avíseme."</div>
+
+            <h3>5.2 Registro durante la segunda tarea</h3>
+            <ul class="checkbox-list">
+                <li>Registrar hora de inicio de la segunda tarea.</li>
+                <li>Registrar condición utilizada: ☐ Agente &nbsp;&nbsp; ☐ Manual.</li>
+                <li>Registrar guía utilizada: ☐ Guía A &nbsp;&nbsp; ☐ Guía B.</li>
+                <li>Registrar restricción asignada: ☐ R1 &nbsp;&nbsp; ☐ R2.</li>
+                <li>En condición con agente, verificar que los logs se guarden en CSV bajo el ID anónimo del participante.</li>
+                <li>Registrar hora de finalización cuando el participante indique que completó la tarea.</li>
+            </ul>
+
+            <h3>5.3 Preguntas abiertas después de la segunda condición</h3>
+            <div class="metadata-box">
+                <p><strong>Preguntas abiertas:</strong></p>
+                <ul>
+                    <li>¿Cómo describiría el proceso de construir el horario en esta segunda modalidad?</li>
+                    <li>¿Qué fue lo más fácil durante la tarea?</li>
+                    <li>¿Qué fue lo más difícil durante la tarea?</li>
+                    <li>¿Sintió que tuvo control suficiente sobre el resultado?</li>
+                    <li>¿Qué mejoraría de esta modalidad?</li>
+                </ul>
+            </div>
+
+            <h3>5.4 Cuestionarios post-interacción de la segunda condición</h3>
+            <p>Después de las preguntas abiertas, solicite completar nuevamente los instrumentos post-interacción.</p>
+            <ul>
+                <li>SUS para evaluar usabilidad percibida.</li>
+                <li>NASA-TLX para evaluar carga mental percibida.</li>
+                <li>Escala breve de satisfacción y confianza, si se incluye como cuestionario complementario.</li>
+            </ul>
+
+            <h2>6. Preguntas finales comparativas</h2>
+            <p>Al finalizar ambas condiciones, aplique preguntas comparativas para profundizar en la percepción general del participante. Estas preguntas deben realizarse antes de cerrar la sesión.</p>
+            <div class="metadata-box">
+                <p><strong>Preguntas comparativas finales:</strong></p>
+                <ul>
+                    <li>¿Cuál modalidad prefirió para construir el horario y por qué?</li>
+                    <li>¿En cuál modalidad sintió menor esfuerzo mental?</li>
+                    <li>¿En cuál modalidad sintió mayor control sobre el resultado?</li>
+                    <li>¿En cuál modalidad sintió mayor confianza en el horario construido?</li>
+                    <li>¿Usaría el agente virtual en un proceso real de matrícula o planificación académica? ¿Por qué?</li>
+                </ul>
+            </div>
+
+            <h3>6.1 Preguntas específicas si el participante utilizó el agente</h3>
+            <p>Estas preguntas exploran el componente corporizado sin sugerir que el avatar debía generar una reacción positiva.</p>
+            <ul>
+                <li>¿La voz del agente influyó de alguna forma en su experiencia?</li>
+                <li>¿El avatar, sus expresiones o animaciones influyeron en su percepción del sistema?</li>
+                <li>¿Sintió que el agente comprendía sus restricciones?</li>
+                <li>¿Hubo algún comportamiento del agente que le pareciera confuso, incómodo o poco natural?</li>
+            </ul>
+
+            <h2>7. Gestión final de datos y respaldo</h2>
+            <p>Inmediatamente después de que el participante abandone el laboratorio o finalice la sesión, el investigador debe realizar las siguientes acciones:</p>
+            <ul class="checkbox-list">
+                <li>Verificar que las respuestas de Google Forms se registraron correctamente bajo el ID anónimo.</li>
+                <li>Verificar que el archivo CSV de logs del agente se guardó correctamente.</li>
+                <li>Confirmar que los archivos no contienen nombres reales ni datos personales identificables.</li>
+                <li>Registrar en la bitácora cualquier problema técnico, interrupción o comportamiento inesperado.</li>
+                <li>Desinfectar audífonos, teclado, ratón y superficie de trabajo.</li>
+                <li>Preparar la computadora para el siguiente participante.</li>
+            </ul>
+
+            <h3>7.1 Plan de anonimización y resguardo</h3>
+            <p>Todos los datos del estudio se asociarán únicamente con el ID anónimo del participante. Los cuestionarios, registros de tiempo, observaciones y logs del agente deberán almacenarse bajo ese ID. Los logs del agente podrán incluir mensajes de interacción, restricciones indicadas por el usuario, horarios generados, correcciones solicitadas, reinicios del flujo, condición experimental, guía utilizada y duración de la sesión.</p>
+            <p>Los archivos CSV y respuestas de formularios deberán guardarse en un repositorio o carpeta segura con acceso restringido al investigador. No se publicarán nombres, correos, números de identificación ni información personal de los participantes.</p>
+
+            <h2>8. Cierre y despedida</h2>
+            <p><strong>Investigador:</strong></p>
+            <div class="quote">"Muchas gracias por su tiempo y por participar en este estudio. Sus respuestas y observaciones serán de mucha utilidad para evaluar y mejorar el diseño del sistema. Que tenga un excelente día."</div>
+
+            <div class="success-box">
+                <p><strong>Nota metodológica:</strong> Las preguntas abiertas se aplican antes de SUS y NASA-TLX para recoger impresiones iniciales menos condicionadas por las escalas estandarizadas. Posteriormente, los cuestionarios permiten obtener medidas comparables de usabilidad y carga mental para ambas condiciones.</p>
+            </div>
+
+            <div class="footer">PF-3311 · Universidad de Costa Rica · I Ciclo 2026</div>
+        </div>
+    </div>
+</body>
+</html>
