@@ -14,6 +14,9 @@ namespace ProyectoAgentesVirtuales.UnityBridge
         [SerializeField] private bool stopCurrentAudio = true;
         [SerializeField] private string temporaryFilePrefix = "agent_tts_response";
 
+        public bool IsPlaying => audioSource != null && audioSource.isPlaying;
+        public AudioSource AudioSource => audioSource;
+
         private Coroutine activePlaybackCoroutine;
 
         private void Awake()

@@ -31,6 +31,8 @@ class LLMModule:
             "Si necesitas pedir una herramienta para horarios, inicia la respuesta con TOOL:schedule."
         )
 
+        self.available_emotion_profiles = self._load_emotion_profiles_from_env()
+
         # Inicializa el cliente LLM
         self.client = genai.Client(api_key=self.api_key, vertexai=False)
 
@@ -39,6 +41,36 @@ class LLMModule:
 
     def _friendly_fallback_response(self) -> str:
         return "No entendí bien, puedes repetirlo?"
+
+    def _load_emotion_profiles_from_env(self) -> List[str]:
+        raw_profiles = os.getenv("LLM_EMOTION_PROFILES", "neutral,friendly,thinking,sad,surprise,happy")
+        profiles = [profile.strip() for profile in raw_profiles.split(",") if profile.strip()]
+        return profiles or ["neutral"]
+
+    def build_agent_response_prompt(self, available_profiles: Optional[List[str]] = None) -> str:
+        profiles = available_profiles or self.available_emotion_profiles
+        profiles_text = ", ".join(profiles)
+        default_profile = profiles[0] if profiles else "neutral"
+
+        return (
+            "Eres un asistente conversacional para un avatar en Unity. "
+            "Debes responder siempre con JSON valido y nada mas. "
+            "Tu salida debe usar exactamente estas keys: text, emotion_profile y tool_call. "
+            "emotion_profile debe ser siempre uno de los perfiles permitidos. "
+            "tool_call debe ser null salvo que realmente necesites activar una herramienta. "
+            "Si necesitas pedir el flujo de horarios, usa tool_call con el valor schedule. "
+            "Nunca inventes perfiles fuera de la lista. "
+            "Siempre debes especificar un emotion_profile.\n\n"
+            f"Perfiles permitidos: {profiles_text}\n\n"
+            "Formato esperado de salida:\n"
+            "{\n"
+            '  "text": "respuesta breve para el usuario",\n'
+            f'  "emotion_profile": "{default_profile}",\n'
+            '  "tool_call": null\n'
+            "}\n\n"
+            "Reglas: responde solo con JSON valido, usa un solo emotion_profile por respuesta, "
+            "y si no necesitas herramienta deja tool_call en null."
+        )
 
     def _build_contents(
         self,
@@ -87,13 +119,19 @@ class LLMModule:
         """Agrega un mensaje al historial de la conversación"""
         self.history.append({"role": role, "content": content})
 
-    def generate_response(self, user_text: str, history: Optional[List[Dict]] = None) -> str:
+    def generate_response(
+        self,
+        user_text: str,
+        history: Optional[List[Dict]] = None,
+        system_prompt: Optional[str] = None,
+    ) -> str:
         """
         Genera una respuesta usando el LLM configurado.
         """
         response_text = self._generate_text(
             user_text,
             history=history or self.history,
+            system_prompt=system_prompt,
             store_user_text=user_text,
         )
 
@@ -216,6 +254,7 @@ class LLMModule:
             "  },\n"
             '  "status": "collecting" | "awaiting_confirmation",\n'
             '  "missing_items": ["..."],\n'
+            '  "emotion_profile": "neutral",\n'
             '  "should_generate": false\n'
             "}\n\n"
             "Debes responder solo con JSON valido y exactamente con esta forma.\n"
@@ -236,6 +275,7 @@ class LLMModule:
             "- Si ya hay suficiente informacion para generar horarios, cambia status a awaiting_confirmation y pregunta si desea generar los horarios.\n"
             "- should_generate solo debe ser true cuando el usuario ya confirmó explícitamente que quiere generar.\n"
             "- Si el usuario pide agregar o corregir algo, actualiza el draft en lugar de resetearlo.\n\n"
+            "- Incluye siempre emotion_profile con uno de estos valores: " + ", ".join(self.available_emotion_profiles) + ".\n"
             "- No uses keys fuera del template canónico.\n\n"
             f"Historial reciente:\n{history_json}\n\n"
             f"Borrador actual:\n{draft_json}\n\n"

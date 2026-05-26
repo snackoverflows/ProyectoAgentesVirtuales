@@ -13,14 +13,13 @@ class OutputModule:
     """
 
     def __init__(self):
-        # Se pueden agregar defaults de animación y emoción
-        self.default_animation = "talk"
-        self.default_emotion = "friendly"
+        self.default_emotion_profile = "neutral"
 
     def create_output(
         self,
         text: str,
         audio_bytes: Optional[bytes] = None,
+        emotion_profile: Optional[str] = None,
         animation: Optional[str] = None,
         emotion: Optional[str] = None,
         warnings: Optional[List[str]] = None,
@@ -38,10 +37,15 @@ class OutputModule:
         output = {
             "text": text,
             "audio_base64": audio_base64,
-            "animation": animation or self.default_animation,
-            "emotion": emotion or self.default_emotion,
+            "emotion_profile": emotion_profile or self.default_emotion_profile,
             "warnings": warnings or [],
         }
+
+        if animation is not None:
+            output["animation"] = animation
+
+        if emotion is not None:
+            output["emotion"] = emotion
 
         if state is not None:
             output["state"] = state

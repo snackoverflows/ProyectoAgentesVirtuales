@@ -20,6 +20,9 @@ namespace ProyectoAgentesVirtuales.UnityBridge
         [Header("Audio")]
         [SerializeField] private AgentAudioPlayer audioPlayer;
 
+        [Header("Avatar Emotion")]
+        [SerializeField] private AvatarEmotionDriver avatarEmotionDriver;
+
         public void HandleResponse(BackendAgentResponse response)
         {
             if (response == null)
@@ -29,6 +32,7 @@ namespace ProyectoAgentesVirtuales.UnityBridge
             }
 
             Debug.Log($"[AgentBackendReceiver] Chat: {response.text}");
+            Debug.Log($"[AgentBackendReceiver] Metadata: emotion_profile='{response.emotion_profile ?? string.Empty}', animation='{response.animation ?? string.Empty}', emotion='{response.emotion ?? string.Empty}'");
 
             if (chatText != null)
             {
@@ -37,7 +41,12 @@ namespace ProyectoAgentesVirtuales.UnityBridge
 
             if (statusText != null)
             {
-                statusText.text = $"{response.animation ?? ""} | {response.emotion ?? ""}".Trim(' ', '|');
+                string statusValue = !string.IsNullOrWhiteSpace(response.emotion_profile)
+                    ? response.emotion_profile
+                    : !string.IsNullOrWhiteSpace(response.emotion)
+                        ? response.emotion
+                        : response.animation ?? string.Empty;
+                statusText.text = statusValue;
             }
 
             if (stateText != null)
@@ -81,6 +90,22 @@ namespace ProyectoAgentesVirtuales.UnityBridge
                 audioPlayer.PlayFromBase64(response.audio_base64);
             }
 
+            if (avatarEmotionDriver == null)
+            {
+                avatarEmotionDriver = GetComponent<AvatarEmotionDriver>();
+            }
+
+            if (avatarEmotionDriver != null)
+            {
+                string selectedProfile = !string.IsNullOrWhiteSpace(response.emotion_profile)
+                    ? response.emotion_profile
+                    : !string.IsNullOrWhiteSpace(response.emotion)
+                        ? response.emotion
+                        : response.animation ?? string.Empty;
+
+                avatarEmotionDriver.ApplyProfile(selectedProfile);
+            }
+
             if (!string.IsNullOrWhiteSpace(response.state_json))
             {
                 Debug.Log($"[AgentBackendReceiver] output.json-like:\n{response.state_json}");
@@ -120,6 +145,16 @@ namespace ProyectoAgentesVirtuales.UnityBridge
             if (warningsText != null)
             {
                 warningsText.text = message;
+            }
+
+            if (avatarEmotionDriver == null)
+            {
+                avatarEmotionDriver = GetComponent<AvatarEmotionDriver>();
+            }
+
+            if (avatarEmotionDriver != null)
+            {
+                avatarEmotionDriver.ResetToNeutralImmediate();
             }
         }
     }

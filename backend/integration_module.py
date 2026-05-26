@@ -26,6 +26,9 @@ tts_module = TTSModule()
 output_module = OutputModule()
 error_handler = ErrorHandler(retries=3, delay=2)
 
+AVAILABLE_EMOTION_PROFILES = llm_module.available_emotion_profiles
+DEFAULT_EMOTION_PROFILE = AVAILABLE_EMOTION_PROFILES[0] if AVAILABLE_EMOTION_PROFILES else "neutral"
+
 # -------- Request / Response --------
 class AgentRequest(BaseModel):
     content: str
@@ -37,8 +40,9 @@ class AgentRequest(BaseModel):
 class AgentResponse(BaseModel):
     text: str
     audio_base64: str
-    animation: str
-    emotion: str
+    emotion_profile: str
+    animation: Optional[str] = None
+    emotion: Optional[str] = None
     warnings: List[str] = Field(default_factory=list)
     state: Optional[Dict[str, Any]] = None
     state_json: Optional[str] = None
@@ -48,6 +52,7 @@ class AgentResponse(BaseModel):
 
 class TextOnlyResponse(BaseModel):
     text: str
+    emotion_profile: str
     warnings: List[str] = Field(default_factory=list)
 
 
@@ -68,6 +73,47 @@ class AgentInterpretResponse(BaseModel):
     raw_text: str
     parsed: Optional[Dict] = None
     warnings: List[str] = Field(default_factory=list)
+
+
+def _normalize_emotion_profile(value: Any) -> str:
+    if not isinstance(value, str):
+        return DEFAULT_EMOTION_PROFILE
+
+    normalized = value.strip().lower()
+    if normalized in AVAILABLE_EMOTION_PROFILES:
+        return normalized
+
+    return DEFAULT_EMOTION_PROFILE
+
+
+def _parse_agent_response_payload(raw_text: str) -> Dict[str, Any]:
+    stripped = raw_text.strip()
+
+    try:
+        parsed = json.loads(stripped)
+        if isinstance(parsed, dict):
+            return parsed
+    except Exception:
+        pass
+
+    fenced_match = re.search(r"```(?:json)?\s*(\{.*\})\s*```", stripped, re.DOTALL)
+    if fenced_match:
+        parsed = json.loads(fenced_match.group(1).strip())
+        if isinstance(parsed, dict):
+            return parsed
+
+    if stripped.startswith("TOOL:schedule"):
+        return {
+            "text": stripped.replace("TOOL:schedule", "", 1).strip(),
+            "emotion_profile": DEFAULT_EMOTION_PROFILE,
+            "tool_call": "schedule",
+        }
+
+    return {
+        "text": stripped,
+        "emotion_profile": DEFAULT_EMOTION_PROFILE,
+        "tool_call": None,
+    }
 
 
 def _extract_json_payload(raw_text: str) -> Dict[str, Any]:
@@ -209,7 +255,7 @@ def _build_schedule_report(payload: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _build_agent_response(req: AgentRequest) -> Tuple[str, List[str], Optional[Dict[str, Any]], Optional[Dict[str, Any]]]:
+def _build_agent_response(req: AgentRequest) -> Tuple[str, List[str], Optional[Dict[str, Any]], Optional[Dict[str, Any]], str]:
     warnings: List[str] = []
     state: Optional[Dict[str, Any]] = None
     schedule_report: Optional[Dict[str, Any]] = None
@@ -217,7 +263,7 @@ def _build_agent_response(req: AgentRequest) -> Tuple[str, List[str], Optional[D
     # 1. Capturar texto transcrito por Unity (STT en cliente)
     entry = input_module.capture_text(req.content, req.user_id, req.session_id)
     if entry is None:
-        return "El mensaje de texto está vacío.", ["Se recibió un texto vacío."], None, None
+        return "El mensaje de texto está vacío.", ["Se recibió un texto vacío."], None, None, DEFAULT_EMOTION_PROFILE
 
     user_text = entry["content_text"]
     memory_module.add_message("user", user_text, req.user_id, req.session_id)
@@ -268,12 +314,12 @@ def _build_agent_response(req: AgentRequest) -> Tuple[str, List[str], Optional[D
             "should_generate": bool(parsed_state.get("should_generate", False)),
         }
 
+        emotion_profile = _normalize_emotion_profile(parsed_state.get("emotion_profile", DEFAULT_EMOTION_PROFILE))
+
         if not _is_canonical_draft(draft):
             state["status"] = "collecting"
             state["should_generate"] = False
             warnings.append("El borrador devuelto por el LLM no respeta el template canónico.")
-
-        memory_module.add_message("assistant", assistant_message, req.user_id, req.session_id, metadata={"state": state})
 
         if state["should_generate"]:
             schedule_report = error_handler.run_with_retry(
@@ -293,7 +339,15 @@ def _build_agent_response(req: AgentRequest) -> Tuple[str, List[str], Optional[D
             )
             warnings.extend(schedule_report.get("warnings", []))
 
-        return assistant_message, warnings, state, schedule_report
+        memory_module.add_message(
+            "assistant",
+            assistant_message,
+            req.user_id,
+            req.session_id,
+            metadata={"state": state, "emotion_profile": emotion_profile},
+        )
+
+        return assistant_message, warnings, state, schedule_report, emotion_profile
 
     # 2. Tomar contexto de memoria por sesión
     conversation_history = memory_module.get_last_messages(
@@ -303,15 +357,29 @@ def _build_agent_response(req: AgentRequest) -> Tuple[str, List[str], Optional[D
     )
 
     # 3. Generar respuesta LLM con fallback
-    llm_response = error_handler.run_with_retry(
+    agent_prompt = llm_module.build_agent_response_prompt(AVAILABLE_EMOTION_PROFILES)
+    raw_llm_response = error_handler.run_with_retry(
         llm_module.generate_response,
         user_text,
         history=conversation_history,
-        fallback="Lo siento, no pude generar una respuesta en este momento."
+        system_prompt=agent_prompt,
+        fallback=json.dumps(
+            {
+                "text": "Lo siento, no pude generar una respuesta en este momento.",
+                "emotion_profile": DEFAULT_EMOTION_PROFILE,
+                "tool_call": None,
+            },
+            ensure_ascii=False,
+        ),
     )
 
+    parsed_response = _parse_agent_response_payload(raw_llm_response)
+    llm_response = parsed_response.get("text") or raw_llm_response
+    emotion_profile = _normalize_emotion_profile(parsed_response.get("emotion_profile", DEFAULT_EMOTION_PROFILE))
+    tool_call = parsed_response.get("tool_call")
+
     # 4. ActionModule condicional por marcador de herramienta
-    if llm_response.startswith("TOOL:schedule"):
+    if tool_call == "schedule" or raw_llm_response.startswith("TOOL:schedule"):
         courses = [
             {"course": "Bases de Datos", "options": [{"day": "Lunes", "start": "08:00", "end": "10:00"}]},
             {"course": "Redes", "options": [{"day": "Martes", "start": "09:00", "end": "11:00"}]},
@@ -343,13 +411,19 @@ def _build_agent_response(req: AgentRequest) -> Tuple[str, List[str], Optional[D
             warnings.append("No se encontraron horarios válidos con las restricciones actuales.")
 
     # 5. Guardar respuesta en memoria
-    memory_module.add_message("assistant", llm_response, req.user_id, req.session_id)
-    return llm_response, warnings, state, schedule_report
+    memory_module.add_message(
+        "assistant",
+        llm_response,
+        req.user_id,
+        req.session_id,
+        metadata={"emotion_profile": emotion_profile},
+    )
+    return llm_response, warnings, state, schedule_report, emotion_profile
 
 # -------- Endpoint principal --------
-@app.post("/agent", response_model=AgentResponse)
+@app.post("/agent", response_model=AgentResponse, response_model_exclude_none=True)
 async def process_agent(req: AgentRequest):
-    llm_response, warnings, state, schedule_report = _build_agent_response(req)
+    llm_response, warnings, state, schedule_report, emotion_profile = _build_agent_response(req)
     audio_bytes, tts_warnings = error_handler.run_with_retry(
         tts_module.synthesize,
         llm_response,
@@ -361,8 +435,7 @@ async def process_agent(req: AgentRequest):
     output_json = output_module.create_output(
         text=llm_response,
         audio_bytes=audio_bytes,
-        animation="talk",
-        emotion="friendly",
+        emotion_profile=emotion_profile,
         warnings=warnings,
         state=state,
         schedule_report=schedule_report,
@@ -373,7 +446,7 @@ async def process_agent(req: AgentRequest):
 
 @app.post("/agent/realtime")
 async def process_agent_realtime(req: AgentRequest):
-    llm_response, warnings, _, _ = _build_agent_response(req)
+    llm_response, warnings, _, _, emotion_profile = _build_agent_response(req)
 
     stream_iter, tts_warnings = error_handler.run_with_retry(
         tts_module.stream_with_fallback,
@@ -387,8 +460,7 @@ async def process_agent_realtime(req: AgentRequest):
         meta = {
             "event": "meta",
             "text": llm_response,
-            "animation": "talk",
-            "emotion": "friendly",
+            "emotion_profile": emotion_profile,
             "warnings": warnings,
         }
         yield (json.dumps(meta, ensure_ascii=False) + "\n").encode("utf-8")
@@ -426,8 +498,8 @@ async def process_agent_realtime(req: AgentRequest):
 
 @app.post("/agent/text-only", response_model=TextOnlyResponse)
 async def process_agent_text_only(req: AgentRequest):
-    llm_response, warnings, _, _ = _build_agent_response(req)
-    return TextOnlyResponse(text=llm_response, warnings=warnings)
+    llm_response, warnings, _, _, emotion_profile = _build_agent_response(req)
+    return TextOnlyResponse(text=llm_response, emotion_profile=emotion_profile, warnings=warnings)
 
 
 @app.post("/schedule/test", response_model=ScheduleTestResponse)

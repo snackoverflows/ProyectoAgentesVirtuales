@@ -23,6 +23,7 @@ namespace ProyectoAgentesVirtuales.UnityBridge
     {
         public string text;
         public string audio_base64;
+        public string emotion_profile;
         public string animation;
         public string emotion;
         public string[] warnings;
