@@ -48,6 +48,8 @@ KNOWN_METRICS = {
 SUPPORTED_SCORING_MODES = {"fixed", "linear"}
 SUPPORTED_AGGREGATIONS = {"sum", "max", "min", "count"}
 SUPPORTED_OBJECTIVE_OPERATORS = {"maximize", "minimize"}
+EvaluationMetrics = Dict[str, Any]
+ENTITY_RULE_TYPES = {"professor", "group", "course", "campus", "tag"}
 
 
 def _is_dict(value: Any) -> bool:
@@ -233,6 +235,10 @@ def _block_overlaps_range(block: Dict[str, Any], time_range: Dict[str, str]) -> 
 
 def _section_id(block: Dict[str, Any]) -> str:
     return _strip_text(block.get("section_id")) or f"{_strip_text(block.get('course'))}|{_strip_text(block.get('group'))}"
+
+
+def _metrics_for_schedule(schedule: List[Dict[str, Any]], metrics: Optional[EvaluationMetrics] = None) -> EvaluationMetrics:
+    return metrics if isinstance(metrics, dict) else _normalized_metrics(schedule)
 
 
 def _normalized_metrics(schedule: List[Dict[str, Any]]) -> Dict[str, Any]:
@@ -593,7 +599,7 @@ def _entity_match_count(schedule: List[Dict[str, Any]], rule: Dict[str, Any]) ->
     return len(matched_sections), len(matched_sections)
 
 
-def _metric_value(schedule: List[Dict[str, Any]], metrics: Dict[str, Any], rule: Dict[str, Any]) -> int:
+def _metric_value(metrics: EvaluationMetrics, rule: Dict[str, Any]) -> int:
     target = _strip_text(rule.get("target"))
     if not target:
         return 0
@@ -618,89 +624,172 @@ def _compare(metric_value: int, operator: str, value: Optional[int], time_range:
     return False
 
 
-def _rule_violated(rule: Dict[str, Any], schedule: List[Dict[str, Any]], meeting_only: bool = False) -> bool:
+def _rule_violated_day(rule: Dict[str, Any], blocks: List[Dict[str, Any]]) -> bool:
+    operator = rule.get("operator")
+    rule_days = set(rule.get("days") or [])
+    schedule_days = {_normalize_day(block.get("day")) for block in blocks if _normalize_day(block.get("day"))}
+    if operator in NEGATIVE_OPERATORS:
+        return bool(schedule_days.intersection(rule_days))
+    if operator in POSITIVE_OPERATORS:
+        return not schedule_days.issubset(rule_days)
+    return False
+
+
+def _rule_violated_time_window(rule: Dict[str, Any], blocks: List[Dict[str, Any]]) -> bool:
+    operator = rule.get("operator")
+    time_range = rule.get("range") or {}
+    if operator in NEGATIVE_OPERATORS:
+        return any(_block_overlaps_range(block, time_range) for block in blocks)
+    if operator in POSITIVE_OPERATORS:
+        return any(not _block_within_range(block, time_range) for block in blocks)
+    return False
+
+
+def _rule_violated_entity(rule: Dict[str, Any], blocks: List[Dict[str, Any]]) -> bool:
+    operator = rule.get("operator")
+    matched_count, total_count = _entity_match_count(blocks, rule)
+    if operator in COMPARE_OPERATORS:
+        value = _to_int(rule.get("value"), None)
+        return not _compare(matched_count, operator, value)
+    if operator in NEGATIVE_OPERATORS:
+        return matched_count > 0
+    if operator in POSITIVE_OPERATORS:
+        if total_count == 0:
+            return False
+        return matched_count != total_count
+    return False
+
+
+def _rule_violated_metric(rule: Dict[str, Any], metrics: EvaluationMetrics) -> bool:
+    operator = rule.get("operator")
+    metric_value = _aggregate_metric_value(_metric_value(metrics, rule), rule.get("aggregation", "sum"))
+    if operator in COMPARE_OPERATORS:
+        return not _compare(metric_value, operator, rule.get("value"))
+    if operator in {"between", "outside"} and _is_dict(rule.get("range")):
+        return not _compare(metric_value, operator, None, rule.get("range"))
+    return False
+
+
+def _rule_violated_custom(rule: Dict[str, Any], metrics: EvaluationMetrics) -> bool:
+    operator = rule.get("operator")
+    if operator in COMPARE_OPERATORS:
+        metric_value = _aggregate_metric_value(_metric_value(metrics, rule), rule.get("aggregation", "sum"))
+        return not _compare(metric_value, operator, rule.get("value"))
+    return False
+
+
+def _rule_violated(
+    rule: Dict[str, Any],
+    schedule: List[Dict[str, Any]],
+    meeting_only: bool = False,
+    metrics: Optional[EvaluationMetrics] = None,
+) -> bool:
     blocks = _blocks_for_rule(schedule, rule, meeting_only=meeting_only)
     if meeting_only and not blocks:
         return False
 
     rule_type = rule.get("type")
-    operator = rule.get("operator")
+    resolved_metrics = _metrics_for_schedule(schedule, metrics)
 
     if rule_type == "day":
-        rule_days = set(rule.get("days") or [])
-        schedule_days = {_normalize_day(block.get("day")) for block in blocks if _normalize_day(block.get("day"))}
-        if operator in NEGATIVE_OPERATORS:
-            return bool(schedule_days.intersection(rule_days))
-        if operator in POSITIVE_OPERATORS:
-            return not schedule_days.issubset(rule_days)
-        return False
-
+        return _rule_violated_day(rule, blocks)
     if rule_type == "time_window":
-        time_range = rule.get("range") or {}
-        if operator in NEGATIVE_OPERATORS:
-            # negative semantics: any overlap with the forbidden range is a violation
-            return any(_block_overlaps_range(block, time_range) for block in blocks)
-        if operator in POSITIVE_OPERATORS:
-            # positive semantics: expect blocks to be fully within the range
-            return any(not _block_within_range(block, time_range) for block in blocks)
-        return False
-
-    if rule_type in {"professor", "group", "course", "campus", "tag"}:
-        matched_count, total_count = _entity_match_count(blocks, rule)
-        if operator in COMPARE_OPERATORS:
-            value = _to_int(rule.get("value"), None)
-            return not _compare(matched_count, operator, value)
-        if operator in NEGATIVE_OPERATORS:
-            return matched_count > 0
-        if operator in POSITIVE_OPERATORS:
-            if total_count == 0:
-                return False
-            return matched_count != total_count
-        return False
-
+        return _rule_violated_time_window(rule, blocks)
+    if rule_type in ENTITY_RULE_TYPES:
+        return _rule_violated_entity(rule, blocks)
     if rule_type == "metric":
-        metrics = _normalized_metrics(schedule)
-        metric_value = _aggregate_metric_value(_metric_value(schedule, metrics, rule), rule.get("aggregation", "sum"))
-        if operator in COMPARE_OPERATORS:
-            return not _compare(metric_value, operator, rule.get("value"))
-        if operator in {"between", "outside"} and _is_dict(rule.get("range")):
-            return not _compare(metric_value, operator, None, rule.get("range"))
-        return False
-
+        return _rule_violated_metric(rule, resolved_metrics)
     if rule_type == "custom":
-        if operator in COMPARE_OPERATORS:
-            metrics = _normalized_metrics(schedule)
-            metric_value = _aggregate_metric_value(_metric_value(schedule, metrics, rule), rule.get("aggregation", "sum"))
-            return not _compare(metric_value, operator, rule.get("value"))
-        return False
-
+        return _rule_violated_custom(rule, resolved_metrics)
     return False
+
+
+def _soft_score_day(schedule: List[Dict[str, Any]], rule: Dict[str, Any], weight: int) -> int:
+    operator = rule.get("operator")
+    schedule_days = {_normalize_day(block.get("day")) for block in schedule if _normalize_day(block.get("day"))}
+    matched = len(schedule_days.intersection(set(rule.get("days") or [])))
+    return (-weight * matched) if operator in NEGATIVE_OPERATORS else (weight * matched)
+
+
+def _soft_score_time_window(schedule: List[Dict[str, Any]], rule: Dict[str, Any], weight: int) -> int:
+    operator = rule.get("operator")
+    blocks = _blocks_for_rule(schedule, rule)
+    time_range = rule.get("range") or {}
+    matched_inside = sum(1 for block in blocks if _block_within_range(block, time_range))
+    matched_overlap = sum(1 for block in blocks if _block_overlaps_range(block, time_range))
+    matched = matched_overlap if operator in NEGATIVE_OPERATORS else matched_inside
+    return (-weight * matched) if operator in NEGATIVE_OPERATORS else (weight * matched)
+
+
+def _soft_score_entity(schedule: List[Dict[str, Any]], rule: Dict[str, Any], weight: int) -> int:
+    operator = rule.get("operator")
+    matched_count, _ = _entity_match_count(schedule, rule)
+    return (-weight * matched_count) if operator in NEGATIVE_OPERATORS else (weight * matched_count)
+
+
+def _soft_score_metric_or_custom(
+    rule: Dict[str, Any],
+    weight: int,
+    metrics: EvaluationMetrics,
+    scoring_mode: str,
+    scoring_per: int,
+) -> int:
+    operator = rule.get("operator")
+    metric_value = _aggregate_metric_value(_metric_value(metrics, rule), rule.get("aggregation", "sum"))
+
+    if scoring_mode == "linear" and operator not in COMPARE_OPERATORS:
+        units = float(metric_value) / max(1, scoring_per)
+        return -int(units * weight)
+
+    satisfied = False
+    if operator in COMPARE_OPERATORS:
+        satisfied = _compare(metric_value, operator, rule.get("value"))
+        if scoring_mode == "linear" and operator == "<=" and rule.get("value") is not None:
+            excess = max(0, metric_value - int(rule.get("value")))
+            return -int((excess / max(1, scoring_per)) * weight)
+    elif operator in {"between", "outside"} and _is_dict(rule.get("range")):
+        satisfied = _compare(metric_value, operator, None, rule.get("range"))
+    elif operator in {"prefer", "include"}:
+        satisfied = metric_value > 0
+    elif operator in NEGATIVE_OPERATORS:
+        satisfied = metric_value == 0
+
+    if satisfied:
+        return weight
+    if operator in NEGATIVE_OPERATORS:
+        return -weight
+    return -weight
 
 
 def meeting_violates_hard(meeting: Dict[str, Any], normalized: Dict[str, Any]) -> bool:
     schedule = [meeting]
+    metrics = _normalized_metrics(schedule)
     for rule in normalized.get("hard_rules", []):
         # only evaluate meeting-scoped rules here
         if rule.get("scope") == "schedule":
             continue
-        if _rule_violated(rule, schedule, meeting_only=True):
+        if _rule_violated(rule, schedule, meeting_only=True, metrics=metrics):
             return True
     return False
 
 
 def hard_violated(schedule: List[Dict[str, Any]], normalized: Dict[str, Any]) -> bool:
+    metrics = _normalized_metrics(schedule)
     for rule in normalized.get("hard_rules", []):
-        if _rule_violated(rule, schedule):
+        if _rule_violated(rule, schedule, metrics=metrics):
             return True
     return False
 
 
-def evaluate_soft(schedule: List[Dict[str, Any]], normalized: Dict[str, Any]) -> int:
+def evaluate_soft(
+    schedule: List[Dict[str, Any]],
+    normalized: Dict[str, Any],
+    metrics: Optional[EvaluationMetrics] = None,
+) -> int:
     total = 0
-    metrics = _normalized_metrics(schedule)
+    resolved_metrics = _metrics_for_schedule(schedule, metrics)
 
     for rule in normalized.get("soft_rules", []):
-        operator = rule.get("operator")
         rule_type = rule.get("type")
         weight = _to_int(rule.get("weight"), 1) or 1
         scoring = _resolve_scoring(rule, normalized)
@@ -708,62 +797,19 @@ def evaluate_soft(schedule: List[Dict[str, Any]], normalized: Dict[str, Any]) ->
         scoring_per = _to_int(scoring.get("per"), 30) or 30
 
         if rule_type == "day":
-            schedule_days = {_normalize_day(block.get("day")) for block in schedule if _normalize_day(block.get("day"))}
-            matched = len(schedule_days.intersection(set(rule.get("days") or [])))
-            if operator in NEGATIVE_OPERATORS:
-                total -= weight * matched
-            else:
-                total += weight * matched
+            total += _soft_score_day(schedule, rule, weight)
             continue
 
         if rule_type == "time_window":
-            blocks = _blocks_for_rule(schedule, rule)
-            time_range = rule.get("range") or {}
-            matched_inside = sum(1 for block in blocks if _block_within_range(block, time_range))
-            matched_overlap = sum(1 for block in blocks if _block_overlaps_range(block, time_range))
-            matched = matched_overlap if operator in NEGATIVE_OPERATORS else matched_inside
-            if operator in NEGATIVE_OPERATORS:
-                total -= weight * matched
-            else:
-                total += weight * matched
+            total += _soft_score_time_window(schedule, rule, weight)
             continue
 
-        if rule_type in {"professor", "group", "course", "campus", "tag"}:
-            matched_count, _ = _entity_match_count(schedule, rule)
-            if operator in NEGATIVE_OPERATORS:
-                total -= weight * matched_count
-            else:
-                total += weight * matched_count
+        if rule_type in ENTITY_RULE_TYPES:
+            total += _soft_score_entity(schedule, rule, weight)
             continue
 
         if rule_type in {"metric", "custom"}:
-            metric_value = _aggregate_metric_value(_metric_value(schedule, metrics, rule), rule.get("aggregation", "sum"))
-            if scoring_mode == "linear" and operator not in COMPARE_OPERATORS:
-                units = float(metric_value) / max(1, scoring_per)
-                total -= int(units * weight)
-                continue
-
-            satisfied = False
-            if operator in COMPARE_OPERATORS:
-                satisfied = _compare(metric_value, operator, rule.get("value"))
-                # for linear with threshold, penalize excess proportionally
-                if scoring_mode == "linear" and operator == "<=" and rule.get("value") is not None:
-                    excess = max(0, metric_value - int(rule.get("value")))
-                    total -= int((excess / max(1, scoring_per)) * weight)
-                    continue
-            elif operator in {"between", "outside"} and _is_dict(rule.get("range")):
-                satisfied = _compare(metric_value, operator, None, rule.get("range"))
-            elif operator in {"prefer", "include"}:
-                satisfied = metric_value > 0
-            elif operator in NEGATIVE_OPERATORS:
-                satisfied = metric_value == 0
-
-            if satisfied:
-                total += weight
-            elif operator in NEGATIVE_OPERATORS:
-                total -= weight
-            else:
-                total -= weight
+            total += _soft_score_metric_or_custom(rule, weight, resolved_metrics, scoring_mode, scoring_per)
 
     return int(total)
 
@@ -798,7 +844,7 @@ def schedule_rank_key(schedule: List[Dict[str, Any]], normalized: Dict[str, Any]
     objectives = optimization.get("objectives", []) if _is_list(optimization.get("objectives")) else []
 
     key: List[int] = [_objective_component(objective, metrics) for objective in objectives]
-    key.append(evaluate_soft(schedule, normalized))
+    key.append(evaluate_soft(schedule, normalized, metrics=metrics))
     return tuple(key)
 
 
