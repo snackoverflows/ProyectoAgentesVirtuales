@@ -235,10 +235,6 @@ def _section_id(block: Dict[str, Any]) -> str:
     return _strip_text(block.get("section_id")) or f"{_strip_text(block.get('course'))}|{_strip_text(block.get('group'))}"
 
 
-def _section_key(block: Dict[str, Any]) -> Tuple[str, str]:
-    return _section_id(block), _strip_text(block.get("course"))
-
-
 def _normalized_metrics(schedule: List[Dict[str, Any]]) -> Dict[str, Any]:
     blocks_by_day: Dict[str, List[Dict[str, Any]]] = {}
     distinct_days: List[str] = []

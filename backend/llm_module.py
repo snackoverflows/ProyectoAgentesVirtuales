@@ -120,86 +120,6 @@ class LLMModule:
             store_user_text=user_text,
         )
 
-    def build_schedule_input_prompt(
-        self,
-        user_text: str,
-        template_payload: Optional[Dict[str, Any]] = None,
-    ) -> str:
-        template_json = json.dumps(
-            template_payload
-            or {
-                "courses": [],
-                "constraints": {
-                    "hard": [],
-                    "soft": [],
-                    "optimization": {"objectives": []},
-                    "scoring": {"mode": "fixed", "per": 30},
-                },
-            },
-            ensure_ascii=False,
-            indent=2,
-        )
-
-        return (
-            "Tu nombre es Chippy. Eres un analizador de requisitos para horarios. "
-            "Responde solo con JSON valido. Sin markdown. Sin texto extra. "
-            "No ejecutes ActionModule en esta etapa.\n\n"
-            "DEVUELVE SOLO ESTE ESQUEMA:\n"
-            "{\n"
-            '  "courses": [{"course":"", "group":"", "professor":"", "meetings":[{"day":"Lunes","start":"08:00","end":"10:00"}]}],\n'
-            '  "constraints": {"hard": [], "soft": [], "optimization": {"objectives": []}, "scoring": {"mode": "fixed", "per": 30}}\n'
-            "}\n\n"
-            "CONTRATO CANONICO OBLIGATORIO (constraints.py):\n"
-            "- Top-level de constraints: solo hard, soft, optimization, scoring.\n"
-            "- optimization: solo objectives.\n"
-            "- Operadores permitidos: include, exclude, prefer, avoid, <=, >=, ==, between, outside.\n"
-            "- NO usar: not_in, in, equals, gt, lt, neq.\n"
-            "- Types permitidos: day, time_window, professor, group, course, metric, tag, campus, custom.\n"
-            "- Scopes permitidos: meeting, course, schedule, day.\n"
-            "- Regla hard/soft siempre incluye type y operator.\n"
-            "- Campos permitidos por regla: type, scope, operator, reason, target, value, days, range, values, weight, aggregation.\n"
-            "- day usa days (array no vacio) con dias validos exactos: Lunes, Martes, Miercoles, Jueves, Viernes, Sabado, Domingo.\n"
-            "- NO usar dias en ingles: MONDAY, FRIDAY, etc.\n"
-            "- time_window usa range.start y range.end en HH:MM.\n"
-            "- professor/group/course/campus usan values (array no vacio), no target.\n"
-            "- metric requiere target. Si operator es <=, >= o ==, requiere value numerico.\n"
-            "- aggregation permitida: sum, max, min, count.\n"
-            "- optimization.objectives: array de objetos con operator, target, priority; opcionales weight, reason, aggregation.\n"
-            "- En optimization.objectives, operator SOLO puede ser: maximize o minimize. No usar min/max.\n"
-            "- targets metric/optimization conocidos: distinct_courses, days_on_campus, total_gap_minutes, morning_classes, selected_sections, courses_per_day, meetings_per_day, gaps_by_day.\n\n"
-            "- No inventes keys nuevas en ningun nivel. Si falta un dato, pregunta; no improvises campos.\n"
-            "REGLAS DE CURSOS:\n"
-            "- Cada item en courses es una seccion/grupo alternativo.\n"
-            "- Cada curso usa exactamente: course, group, professor, meetings.\n"
-            "- Cada meeting usa exactamente: day, start, end.\n"
-            "- Formato obligatorio de professor: Nombre Apellido, con mayuscula inicial en cada palabra (ejemplo: Juan Perez).\n"
-            "- Formato obligatorio de course: Capitaliza cada palabra (ejemplo: Calculo Integral).\n"
-            "- Formato obligatorio de day: Lunes, Martes, Miercoles, Jueves, Viernes, Sabado, Domingo.\n"
-            "- Formato obligatorio de group: 'Grupo N' (ejemplo: Grupo 1, Grupo 2). No usar G1, g1, 1, A, B.\n"
-            "- Horas en HH:MM (24h).\n"
-            "- Si falta professor: usa exactamente 'Desconocido'.\n"
-            "- No inventes datos faltantes; pide aclaracion breve si es necesario.\n"
-            "- No agregues max_per_day ni top_n salvo que el usuario lo pida explicitamente.\n"
-            "- Si el usuario usa terminos ambiguos (poco, mucho, temprano, tarde, cerca, lejos, casi, etc.), NO conviertas eso en numeros estrictos directamente.\n"
-            "- En caso ambiguo, haz una suposicion conservadora y pidela confirmar en texto antes de fijarla como regla dura.\n"
-            "- Ejemplo: 'ir pocos dias' -> usar optimization con minimize days_on_campus, no hard metric == 1.\n"
-            "- Si propones un numero por ambiguedad, dejalo como preferencia (soft/optimization) y pregunta si esta bien.\n"
-            "- Solo usa comparaciones hard estrictas (==, <=, >=) cuando el usuario dio un numero explicito o confirmo la suposicion.\n"
-            "- Jerarquia obligatoria: hard > soft > optimization. Evita crear hard innecesarias que bloqueen horarios.\n"
-            "- Devuelve JSON valido y nada mas.\n\n"
-            f"Catalogo base:\n{template_json}\n\n"
-            f"Mensaje del usuario:\n{user_text}"
-        )
-
-    def generate_schedule_input(
-        self,
-        user_text: str,
-        template_payload: Optional[Dict[str, Any]] = None,
-        history: Optional[List[Dict]] = None,
-    ) -> str:
-        prompt = self.build_schedule_input_prompt(user_text, template_payload=template_payload)
-        return self._generate_text(prompt, history=history or self.history, store_user_text=user_text)
-
     def build_schedule_chat_prompt(
         self,
         user_text: str,
@@ -259,7 +179,7 @@ class LLMModule:
             "- Cada item en courses es seccion/grupo alternativo.\n"
             "- Cada curso usa: course, group, professor, meetings.\n"
             "- Cada meeting usa: day, start, end.\n"
-            "- Formato obligatorio de professor: Nombre Apellido, con mayuscula inicial por palabra (ejemplo: Juan Perez).\n"
+            "- Formato de professor: Nombre o Nombre Apellido. El apellido no es obligatorio; si aparece, cada palabra debe iniciar con mayuscula (ejemplos: Juan, Juan Perez).\n"
             "- Formato obligatorio de course: Capitaliza cada palabra (ejemplo: Calculo Integral).\n"
             "- Formato obligatorio de day: Lunes, Martes, Miercoles, Jueves, Viernes, Sabado, Domingo.\n"
             "- Formato obligatorio de group: 'Grupo N' (ejemplo: Grupo 1). No usar G1, g1, 1, A, B.\n"

@@ -1,5 +1,4 @@
-# integration_module.py
-from fastapi import FastAPI, File, UploadFile, Form
+﻿from fastapi import FastAPI, File, UploadFile, Form
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typing import Optional, List, Tuple, Iterator, Literal, Dict, Any
@@ -20,7 +19,6 @@ from error_module import ErrorHandler
 
 app = FastAPI(title="Agente Virtual Backend")
 
-# -------- Módulos --------
 input_module = InputModule()
 memory_module = MemoryModule()
 llm_module = LLMModule()
@@ -36,27 +34,13 @@ DEFAULT_EMOTION_PROFILE = AVAILABLE_EMOTION_PROFILES[0] if AVAILABLE_EMOTION_PRO
 DEBUG_LOGS = os.getenv("BACKEND_DEBUG_LOGS", "").strip().lower() in {"1", "true", "yes", "on"}
 
 
-def _log_debug(label: str, payload: Any) -> None:
-    if not DEBUG_LOGS:
-        return
-
-    try:
-        if isinstance(payload, (dict, list)):
-            rendered = json.dumps(payload, ensure_ascii=False, indent=2)
-        else:
-            rendered = str(payload)
-    except Exception:
-        rendered = str(payload)
-
-    print(f"[DEBUG] {label}: {rendered}")
-
-# -------- Request / Response --------
 class AgentRequest(BaseModel):
     content: str
     user_id: Optional[str] = "user1"
     session_id: Optional[str] = "default"
     tts_mode: Literal["auto", "stream", "batch"] = "auto"
     workflow: Literal["chat", "schedule"] = "chat"
+
 
 class AgentResponse(BaseModel):
     text: str
@@ -71,20 +55,25 @@ class AgentResponse(BaseModel):
     schedule_json: Optional[str] = None
 
 
+def _log_debug(label: str, payload: Any) -> None:
+    if not DEBUG_LOGS:
+        return
+    try:
+        rendered = json.dumps(payload, ensure_ascii=False, indent=2) if isinstance(payload, (dict, list)) else str(payload)
+    except Exception:
+        rendered = str(payload)
+    print(f"[DEBUG] {label}: {rendered}")
+
+
 def _normalize_emotion_profile(value: Any) -> str:
     if not isinstance(value, str):
         return DEFAULT_EMOTION_PROFILE
-
     normalized = value.strip().lower()
-    if normalized in AVAILABLE_EMOTION_PROFILES:
-        return normalized
-
-    return DEFAULT_EMOTION_PROFILE
+    return normalized if normalized in AVAILABLE_EMOTION_PROFILES else DEFAULT_EMOTION_PROFILE
 
 
 def _parse_agent_response_payload(raw_text: str) -> Dict[str, Any]:
     stripped = raw_text.strip()
-
     try:
         parsed = json.loads(stripped)
         if isinstance(parsed, dict):
@@ -98,15 +87,11 @@ def _parse_agent_response_payload(raw_text: str) -> Dict[str, Any]:
         if isinstance(parsed, dict):
             return parsed
 
-    return {
-        "text": stripped,
-        "emotion_profile": DEFAULT_EMOTION_PROFILE,
-    }
+    return {"text": stripped, "emotion_profile": DEFAULT_EMOTION_PROFILE}
 
 
 def _extract_json_payload(raw_text: str) -> Dict[str, Any]:
     stripped = raw_text.strip()
-
     try:
         return json.loads(stripped)
     except Exception:
@@ -149,10 +134,8 @@ def _get_latest_schedule_draft(user_id: str, session_id: str) -> Dict[str, Any]:
 def _detect_clear_intent(user_text: str) -> Dict[str, bool]:
     lowered = (user_text or "").strip().lower()
     wants_clear = "limpiar" in lowered or "borrar" in lowered or "vaciar" in lowered or "resetear" in lowered
-
     if not wants_clear:
         return {"clear_courses": False, "clear_constraints": False, "clear_schedules": False}
-
     return {
         "clear_courses": "curso" in lowered or "cursos" in lowered,
         "clear_constraints": "restriccion" in lowered or "restricciones" in lowered,
@@ -215,13 +198,45 @@ def _is_canonical_draft(draft: Dict[str, Any]) -> bool:
 
 def _validate_draft_constraints(draft: Dict[str, Any]) -> List[str]:
     if not isinstance(draft, dict):
-        return ["El borrador no es un objeto JSON válido."]
-
+        return ["El borrador no es un objeto JSON valido."]
     constraints = draft.get("constraints", {})
     if not isinstance(constraints, dict):
         return ["constraints debe ser un objeto."]
-
     return constraints_module.validate_constraints(constraints)
+
+
+def _build_contract_violation_message() -> str:
+    return "Necesito corregir el formato del borrador antes de generar. Revisa cursos y restricciones para continuar."
+
+
+def _enforce_schedule_contract(
+    parsed_state: Dict[str, Any],
+    current_draft: Dict[str, Any],
+    warnings: List[str],
+) -> Dict[str, Any]:
+    assistant_message = parsed_state.get("assistant_message") or "Sigo construyendo el borrador del horario."
+    draft = parsed_state.get("draft", current_draft)
+    state = {
+        "assistant_message": assistant_message,
+        "draft": draft,
+        "status": parsed_state.get("status", "collecting"),
+        "missing_items": parsed_state.get("missing_items", []),
+        "should_generate": bool(parsed_state.get("should_generate", False)),
+    }
+
+    contract_errors: List[str] = []
+    if not _is_canonical_draft(draft):
+        contract_errors.append("El borrador devuelto por el LLM no respeta el template canonico.")
+    contract_errors.extend(_validate_draft_constraints(draft))
+
+    if contract_errors:
+        state["status"] = "collecting"
+        state["should_generate"] = False
+        state["assistant_message"] = _build_contract_violation_message()
+        warnings.append("Las restricciones no cumplen el contrato canonico y se bloqueo la generacion.")
+        warnings.extend(contract_errors)
+
+    return state
 
 
 def _build_schedule_report(payload: Dict[str, Any]) -> Dict[str, Any]:
@@ -252,11 +267,7 @@ def _build_schedule_report(payload: Dict[str, Any]) -> Dict[str, Any]:
         )
 
     return {
-        "text": (
-            f"Se generaron {len(schedule_rows)} horarios válidos."
-            if schedule_rows
-            else "No se encontraron horarios válidos con las restricciones indicadas."
-        ),
+        "text": f"Se generaron {len(schedule_rows)} horarios validos." if schedule_rows else "No se encontraron horarios validos con las restricciones indicadas.",
         "schedules": schedule_rows,
         "warnings": warnings,
         "execution_params": {
@@ -268,18 +279,146 @@ def _build_schedule_report(payload: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
-def _build_agent_response(req: AgentRequest) -> Tuple[str, List[str], Optional[Dict[str, Any]], Optional[Dict[str, Any]], str]:
+def _run_schedule_workflow(req: AgentRequest, user_text: str) -> Tuple[str, List[str], Dict[str, Any], Optional[Dict[str, Any]], str]:
     warnings: List[str] = []
-    state: Optional[Dict[str, Any]] = None
-    schedule_report: Optional[Dict[str, Any]] = None
+    current_draft = _get_latest_schedule_draft(req.user_id, req.session_id)
+    conversation_history = memory_module.get_last_messages(n=12, user_id=req.user_id, session_id=req.session_id)
 
-    # 1. Capturar texto transcrito por Unity (STT en cliente)
+    raw_llm_text = error_handler.run_with_retry(
+        llm_module.generate_schedule_chat_turn,
+        user_text,
+        current_draft=current_draft,
+        history=conversation_history,
+        fallback=json.dumps(
+            {
+                "assistant_message": "No pude interpretar el borrador de horarios en este momento.",
+                "draft": current_draft,
+                "status": "collecting",
+                "missing_items": [],
+                "should_generate": False,
+            },
+            ensure_ascii=False,
+        ),
+    )
+    _log_debug("llm.schedule.raw", raw_llm_text)
+
+    try:
+        parsed_state = _extract_json_payload(raw_llm_text)
+    except Exception:
+        parsed_state = {
+            "assistant_message": raw_llm_text,
+            "draft": current_draft,
+            "status": "collecting",
+            "missing_items": [],
+            "should_generate": False,
+        }
+
+    _log_debug("llm.schedule.parsed", parsed_state)
+
+    state = _enforce_schedule_contract(parsed_state, current_draft, warnings)
+    emotion_profile = _normalize_emotion_profile(parsed_state.get("emotion_profile", DEFAULT_EMOTION_PROFILE))
+
+    schedule_report: Optional[Dict[str, Any]] = None
+    if state["should_generate"]:
+        schedule_report = error_handler.run_with_retry(
+            _build_schedule_report,
+            state["draft"],
+            fallback={
+                "text": "No se encontraron horarios validos con las restricciones indicadas.",
+                "schedules": [],
+                "warnings": ["No se pudo generar el horario."],
+                "execution_params": {
+                    "max_per_day": None,
+                    "max_per_day_source": "unset",
+                    "top_n": 3,
+                    "top_n_source": "default",
+                },
+            },
+        )
+        warnings.extend(schedule_report.get("warnings", []))
+        _log_debug("schedule.report", schedule_report)
+
+    assistant_message = state.get("assistant_message") or "Sigo construyendo el borrador del horario."
+    memory_module.add_message(
+        "assistant",
+        assistant_message,
+        req.user_id,
+        req.session_id,
+        metadata={"state": state, "emotion_profile": emotion_profile},
+    )
+
+    return assistant_message, warnings, state, schedule_report, emotion_profile
+
+
+def _run_chat_workflow(req: AgentRequest, user_text: str) -> Tuple[str, List[str], Optional[Dict[str, Any]], Optional[Dict[str, Any]], str]:
+    warnings: List[str] = []
+    conversation_history = memory_module.get_last_messages(n=10, user_id=req.user_id, session_id=req.session_id)
+
+    agent_prompt = llm_module.build_agent_response_prompt(AVAILABLE_EMOTION_PROFILES)
+    raw_llm_response = error_handler.run_with_retry(
+        llm_module.generate_response,
+        user_text,
+        history=conversation_history,
+        system_prompt=agent_prompt,
+        fallback=json.dumps(
+            {
+                "text": "Lo siento, no pude generar una respuesta en este momento.",
+                "emotion_profile": DEFAULT_EMOTION_PROFILE,
+            },
+            ensure_ascii=False,
+        ),
+    )
+
+    _log_debug("llm.chat.raw", raw_llm_response)
+    parsed_response = _parse_agent_response_payload(raw_llm_response)
+    _log_debug("llm.chat.parsed", parsed_response)
+    llm_response = parsed_response.get("text") or raw_llm_response
+    emotion_profile = _normalize_emotion_profile(parsed_response.get("emotion_profile", DEFAULT_EMOTION_PROFILE))
+
+    memory_module.add_message(
+        "assistant",
+        llm_response,
+        req.user_id,
+        req.session_id,
+        metadata={"emotion_profile": emotion_profile},
+    )
+    return llm_response, warnings, None, None, emotion_profile
+
+
+def _build_output_with_tts(
+    req: AgentRequest,
+    llm_response: str,
+    warnings: List[str],
+    state: Optional[Dict[str, Any]],
+    schedule_report: Optional[Dict[str, Any]],
+    emotion_profile: str,
+) -> Dict[str, Any]:
+    audio_bytes, tts_warnings = error_handler.run_with_retry(
+        tts_module.synthesize,
+        llm_response,
+        mode=req.tts_mode,
+        fallback=(b"", ["No se pudo generar audio TTS."]),
+    )
+    warnings.extend(tts_warnings)
+
+    return output_module.create_output(
+        text=llm_response,
+        audio_bytes=audio_bytes,
+        emotion_profile=emotion_profile,
+        warnings=warnings,
+        state=state,
+        schedule_report=schedule_report,
+    )
+
+
+def _build_agent_response(req: AgentRequest) -> Tuple[str, List[str], Optional[Dict[str, Any]], Optional[Dict[str, Any]], str]:
     entry = input_module.capture_text(req.content, req.user_id, req.session_id)
     if entry is None:
-        return "El mensaje de texto está vacío.", ["Se recibió un texto vacío."], None, None, DEFAULT_EMOTION_PROFILE
+        return "El mensaje de texto esta vacio.", ["Se recibio un texto vacio."], None, None, DEFAULT_EMOTION_PROFILE
 
     user_text = entry["content_text"]
     memory_module.add_message("user", user_text, req.user_id, req.session_id)
+    warnings: List[str] = []
 
     clear_flags = _detect_clear_intent(user_text)
     if any(clear_flags.values()):
@@ -292,14 +431,15 @@ def _build_agent_response(req: AgentRequest) -> Tuple[str, List[str], Optional[D
         if clear_flags["clear_constraints"]:
             draft["constraints"] = default_draft["constraints"]
 
-        state = {
-            "assistant_message": "Listo, limpié lo solicitado.",
+        state: Dict[str, Any] = {
+            "assistant_message": "Listo, limpie lo solicitado.",
             "draft": draft,
             "status": "collecting",
             "missing_items": [],
             "should_generate": False,
         }
 
+        schedule_report: Optional[Dict[str, Any]] = None
         if clear_flags["clear_schedules"]:
             schedule_report = {
                 "text": "Horarios limpiados.",
@@ -320,164 +460,18 @@ def _build_agent_response(req: AgentRequest) -> Tuple[str, List[str], Optional[D
             req.session_id,
             metadata={"state": state, "emotion_profile": DEFAULT_EMOTION_PROFILE},
         )
-
         return state["assistant_message"], warnings, state, schedule_report, DEFAULT_EMOTION_PROFILE
 
     if req.workflow == "schedule":
-        current_draft = _get_latest_schedule_draft(req.user_id, req.session_id)
-        conversation_history = memory_module.get_last_messages(
-            n=12,
-            user_id=req.user_id,
-            session_id=req.session_id,
-        )
+        return _run_schedule_workflow(req, user_text)
 
-        raw_llm_text = error_handler.run_with_retry(
-            llm_module.generate_schedule_chat_turn,
-            user_text,
-            current_draft=current_draft,
-            history=conversation_history,
-            fallback=json.dumps(
-                {
-                    "assistant_message": "No pude interpretar el borrador de horarios en este momento.",
-                    "draft": current_draft,
-                    "status": "collecting",
-                    "missing_items": [],
-                    "should_generate": False,
-                },
-                ensure_ascii=False,
-            ),
-        )
+    return _run_chat_workflow(req, user_text)
 
-        _log_debug("llm.schedule.raw", raw_llm_text)
 
-        try:
-            parsed_state = _extract_json_payload(raw_llm_text)
-        except Exception:
-            parsed_state = {
-                "assistant_message": raw_llm_text,
-                "draft": current_draft,
-                "status": "collecting",
-                "missing_items": [],
-                "should_generate": False,
-            }
-
-        _log_debug("llm.schedule.parsed", parsed_state)
-
-        assistant_message = parsed_state.get("assistant_message") or "Sigo construyendo el borrador del horario."
-        draft = parsed_state.get("draft", current_draft)
-        state = {
-            "assistant_message": assistant_message,
-            "draft": draft,
-            "status": parsed_state.get("status", "collecting"),
-            "missing_items": parsed_state.get("missing_items", []),
-            "should_generate": bool(parsed_state.get("should_generate", False)),
-        }
-
-        emotion_profile = _normalize_emotion_profile(parsed_state.get("emotion_profile", DEFAULT_EMOTION_PROFILE))
-
-        if not _is_canonical_draft(draft):
-            state["status"] = "collecting"
-            state["should_generate"] = False
-            warnings.append("El borrador devuelto por el LLM no respeta el template canónico.")
-
-        constraint_errors = _validate_draft_constraints(draft)
-        if constraint_errors:
-            state["status"] = "collecting"
-            state["should_generate"] = False
-            warnings.append("Las restricciones no cumplen el contrato canónico y se bloqueará la generación.")
-            warnings.extend(constraint_errors)
-
-        if state["should_generate"]:
-            schedule_report = error_handler.run_with_retry(
-                _build_schedule_report,
-                state["draft"],
-                fallback={
-                    "text": "No se encontraron horarios válidos con las restricciones indicadas.",
-                    "schedules": [],
-                    "warnings": ["No se pudo generar el horario."],
-                    "execution_params": {
-                        "max_per_day": None,
-                        "max_per_day_source": "unset",
-                        "top_n": 3,
-                        "top_n_source": "default",
-                    },
-                },
-            )
-            warnings.extend(schedule_report.get("warnings", []))
-            _log_debug("schedule.report", schedule_report)
-
-        memory_module.add_message(
-            "assistant",
-            assistant_message,
-            req.user_id,
-            req.session_id,
-            metadata={"state": state, "emotion_profile": emotion_profile},
-        )
-
-        return assistant_message, warnings, state, schedule_report, emotion_profile
-
-    # 2. Tomar contexto de memoria por sesión
-    conversation_history = memory_module.get_last_messages(
-        n=10,
-        user_id=req.user_id,
-        session_id=req.session_id,
-    )
-
-    # 3. Generar respuesta LLM con fallback
-    agent_prompt = llm_module.build_agent_response_prompt(AVAILABLE_EMOTION_PROFILES)
-    raw_llm_response = error_handler.run_with_retry(
-        llm_module.generate_response,
-        user_text,
-        history=conversation_history,
-        system_prompt=agent_prompt,
-        fallback=json.dumps(
-            {
-                "text": "Lo siento, no pude generar una respuesta en este momento.",
-                "emotion_profile": DEFAULT_EMOTION_PROFILE,
-            },
-            ensure_ascii=False,
-        ),
-    )
-
-    _log_debug("llm.chat.raw", raw_llm_response)
-
-    parsed_response = _parse_agent_response_payload(raw_llm_response)
-    _log_debug("llm.chat.parsed", parsed_response)
-    llm_response = parsed_response.get("text") or raw_llm_response
-    emotion_profile = _normalize_emotion_profile(parsed_response.get("emotion_profile", DEFAULT_EMOTION_PROFILE))
-
-    # 5. Guardar respuesta en memoria
-    memory_module.add_message(
-        "assistant",
-        llm_response,
-        req.user_id,
-        req.session_id,
-        metadata={"emotion_profile": emotion_profile},
-    )
-    return llm_response, warnings, state, schedule_report, emotion_profile
-
-# -------- Endpoint principal --------
 @app.post("/agent", response_model=AgentResponse, response_model_exclude_none=True)
 async def process_agent(req: AgentRequest):
     llm_response, warnings, state, schedule_report, emotion_profile = _build_agent_response(req)
-    audio_bytes, tts_warnings = error_handler.run_with_retry(
-        tts_module.synthesize,
-        llm_response,
-        mode=req.tts_mode,
-        fallback=(b"", ["No se pudo generar audio TTS."]),
-    )
-    warnings.extend(tts_warnings)
-
-    output_json = output_module.create_output(
-        text=llm_response,
-        audio_bytes=audio_bytes,
-        emotion_profile=emotion_profile,
-        warnings=warnings,
-        state=state,
-        schedule_report=schedule_report,
-    )
-
-    return output_json
+    return _build_output_with_tts(req, llm_response, warnings, state, schedule_report, emotion_profile)
 
 
 @app.post("/agent/realtime")
@@ -509,11 +503,7 @@ async def process_agent_realtime(req: AgentRequest):
                 }
                 yield (json.dumps(payload) + "\n").encode("utf-8")
         except Exception:
-            fallback_audio = error_handler.run_with_retry(
-                tts_module.generate_audio,
-                llm_response,
-                fallback=b"",
-            )
+            fallback_audio = error_handler.run_with_retry(tts_module.generate_audio, llm_response, fallback=b"")
             warning_payload = {
                 "event": "warning",
                 "message": "Stream interrumpido; se entrega audio en modo batch.",
@@ -540,10 +530,6 @@ async def transcribe_and_process(
     tts_mode: str = Form("auto"),
     workflow: str = Form("chat"),
 ):
-    """
-    Recibe un archivo de audio (multipart/form-data, campo 'file'), lo transcribe usando STT
-    y procesa la transcripción como si viniera de `/agent`.
-    """
     try:
         audio_bytes = await file.read()
         mime_type = file.content_type or "audio/wav"
@@ -555,10 +541,8 @@ async def transcribe_and_process(
             "warnings": [f"No se pudo leer el archivo de audio: {e}"],
         }
 
-    # Guardar entrada de audio en historial
     input_module.capture_audio(audio_bytes, mime_type=mime_type, user_id=user_id, session_id=session_id)
 
-    # Transcribir con STT module
     try:
         transcript = error_handler.run_with_retry(stt_module.transcribe, audio_bytes, mime_type, fallback="")
     except Exception as e:
@@ -574,11 +558,9 @@ async def transcribe_and_process(
             "text": "",
             "audio_base64": "",
             "emotion_profile": DEFAULT_EMOTION_PROFILE,
-            "warnings": ["STT no devolvió texto."],
+            "warnings": ["STT no devolvio texto."],
         }
 
-    # Construir request y procesar como /agent
-    # Intent detection: sondeo rápido al LLM para ver si el usuario pide generar el horario.
     try:
         current_draft = _get_latest_schedule_draft(user_id, session_id)
         conversation_history = memory_module.get_last_messages(n=12, user_id=user_id, session_id=session_id)
@@ -594,36 +576,14 @@ async def transcribe_and_process(
         try:
             probe_parsed = _extract_json_payload(probe_raw)
             _log_debug("llm.schedule.probe_parsed", probe_parsed)
-            # Si el LLM devolvió un borrador parcial (draft) o indica should_generate,
-            # tratamos esto como input de flujo 'schedule' para que se actualice el draft en memoria.
             if isinstance(probe_parsed, dict) and (probe_parsed.get("should_generate") or isinstance(probe_parsed.get("draft"), dict)):
                 workflow = "schedule"
                 _log_debug("llm.schedule.workflow", "forced_schedule")
         except Exception:
-            # Si el probe no devuelve JSON válido, no forzamos el workflow.
             pass
     except Exception:
-        # En caso de fallos en la detección, seguimos con el workflow provisto.
         pass
 
     req = AgentRequest(content=transcript, user_id=user_id, session_id=session_id, tts_mode=tts_mode, workflow=workflow)
     llm_response, warnings, state, schedule_report, emotion_profile = _build_agent_response(req)
-
-    audio_bytes_out, tts_warnings = error_handler.run_with_retry(
-        tts_module.synthesize,
-        llm_response,
-        mode=req.tts_mode,
-        fallback=(b"", ["No se pudo generar audio TTS."]),
-    )
-    warnings.extend(tts_warnings)
-
-    output_json = output_module.create_output(
-        text=llm_response,
-        audio_bytes=audio_bytes_out,
-        emotion_profile=emotion_profile,
-        warnings=warnings,
-        state=state,
-        schedule_report=schedule_report,
-    )
-
-    return output_json
+    return _build_output_with_tts(req, llm_response, warnings, state, schedule_report, emotion_profile)
