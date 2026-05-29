@@ -25,7 +25,7 @@ class InputModule:
             "content": content,
             "user": user_id,
             "session_id": session_id,
-            "timestamp": datetime.datetime.utcnow().isoformat(),
+            "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
         }
         if mime_type:
             entry["mime_type"] = mime_type

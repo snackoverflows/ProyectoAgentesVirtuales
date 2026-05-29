@@ -36,7 +36,7 @@ class MemoryModule:
             "content": content,
             "user": user_id,
             "session_id": session_id,
-            "timestamp": datetime.datetime.utcnow().isoformat(),
+            "timestamp": datetime.datetime.now(datetime.UTC).isoformat(),
         }
         if metadata:
             entry["metadata"] = metadata

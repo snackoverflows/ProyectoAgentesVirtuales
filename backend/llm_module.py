@@ -31,9 +31,6 @@ class LLMModule:
         self.client = genai.Client(api_key=self.api_key, vertexai=False)
         self.history = []
 
-    def _friendly_fallback_response(self) -> str:
-        return "Algo salio mal, puedes repetirlo?"
-
     def _load_emotion_profiles_from_env(self) -> List[str]:
         raw_profiles = os.getenv("LLM_EMOTION_PROFILES", "neutral,friendly,thinking,sad,surprise,happy")
         profiles = [profile.strip() for profile in raw_profiles.split(",") if profile.strip()]
@@ -172,6 +169,9 @@ class LLMModule:
             "- aggregation permitida: sum, max, min, count.\n"
             "- optimization.objectives: objetos con operator, target, priority; opcionales weight, reason, aggregation.\n"
             "- En optimization.objectives, operator SOLO puede ser: maximize o minimize. No usar min/max.\n"
+            "- En optimization.objectives, priority debe ser entero positivo (1, 2, 3, ...).\n"
+            "- No usar priority textual (high, medium, low) ni strings numericos.\n"
+            "- Si no sabes la prioridad, usa 1.\n"
             "- targets metric/optimization conocidos: distinct_courses, days_on_campus, total_gap_minutes, morning_classes, selected_sections, courses_per_day, meetings_per_day, gaps_by_day.\n\n"
             "- No inventes keys nuevas en ningun nivel. Si falta un dato, pregunta; no improvises campos.\n"
             "REGLAS DE DRAFT:\n"

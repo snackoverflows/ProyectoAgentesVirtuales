@@ -36,7 +36,7 @@ Mismo flujo conversacional, con audio en NDJSON:
 
 ### `POST /transcribe`
 Recibe audio multipart (`file`), transcribe y procesa como `/agent`.
-Puede forzar `workflow=schedule` si el probe de LLM devuelve `draft` o `should_generate`.
+Usa el `workflow` enviado por cliente (`chat` o `schedule`). No realiza probe extra al LLM.
 
 ## Flujo schedule (actual)
 1. Se captura texto y se guarda en memoria por `user_id:session_id`.
@@ -99,3 +99,9 @@ cd backend
 - `TTS_OUTPUT_FORMAT` (opcional)
 - `TTS_STREAM_MODEL` (opcional)
 - `BACKEND_DEBUG_LOGS` (opcional)
+- `LLM_RETRIES` (opcional, default `2`)
+- `LLM_RETRY_DELAY` (opcional, default `0.4`)
+- `STT_RETRIES` (opcional, default `2`)
+- `STT_RETRY_DELAY` (opcional, default `0.3`)
+- `TTS_RETRIES` (opcional, default `1`)
+- `TTS_RETRY_DELAY` (opcional, default `0.2`)
