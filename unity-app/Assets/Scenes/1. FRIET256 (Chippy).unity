@@ -119,59 +119,6 @@ NavMeshSettings:
     debug:
       m_Flags: 0
   m_NavMeshData: {fileID: 0}
---- !u!1 &94402196
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 94402198}
-  - component: {fileID: 94402197}
-  m_Layer: 0
-  m_Name: AgentBackendSender
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &94402197
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 94402196}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: ba1090a1f911f104ebd7b0df03940f0b, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::ProyectoAgentesVirtuales.UnityBridge.AgentBackendSender
-  backendUrl: http://127.0.0.1:8000/agent
-  workflow: schedule
-  userId: unity_user
-  sessionId: default
-  ttsMode: auto
-  inputField: {fileID: 671315894}
-  sendButton: {fileID: 1603867556}
-  receiver: {fileID: 1753904020}
-  clearInputAfterSend: 1
---- !u!4 &94402198
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 94402196}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 1507.2162, y: 150.3673, z: -41.30983}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &129885908
 GameObject:
   m_ObjectHideFlags: 0

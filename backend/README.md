@@ -238,70 +238,12 @@ Nota: Si TTS stream no esta disponible por plan/cuenta, el backend degrada autom
 3. Levantar FastAPI con uvicorn apuntando a integration_module:app.
 4. Probar endpoints con cliente HTTP (Postman, Insomnia o curl).
 
-## 11) Prueba local sin Unity con `main.py`
-`main.py` funciona como runner de consola para probar solo la generacion de horarios.
-
-### Entrada esperada
-Debe recibir un JSON con esta estructura:
-```json
-{
-  "courses": [
-    {
-      "course": "Bases de Datos",
-      "group": "A",
-      "professor": "Perez",
-      "meetings": [
-        {"day": "Lunes", "start": "08:00", "end": "10:00"},
-        {"day": "Miércoles", "start": "10:00", "end": "12:00"}
-      ]
-    }
-  ],
-  "constraints": {
-    "hard": {},
-    "soft": {},
-    "weights": {}
-  },
-  "max_per_day": 3,
-  "top_n": 3
-}
-```
-
-## 12) Prueba local solo de interpretacion con `main_llm.py`
-`main_llm.py` sirve para conversar con el LLM y revisar el JSON estructurado que interpreta antes de pasar por `ActionModule`.
-
-### Entrada esperada
-Puede recibir texto por argumento o por stdin:
-```bash
-python main_llm.py "Quiero un horario sin clases en la tarde"
-python main_llm.py < prompt.txt
-```
-
-### Comportamiento
-- Usa `input.json` como plantilla base si existe; si no, cae a una plantilla vacia.
-- Le pide al LLM que devuelva solo un JSON con el mismo esquema que usan los `test_*.json`.
-- Escribe el resultado en `output.json` por defecto para que puedas compararlo directamente.
-
-### Plantilla alternativa
-Si quieres probar contra otro archivo de referencia:
-```bash
-python main_llm.py --template test_1.json --output output.json "Solo quiero horarios de mañana"
-```
-
-### Salida esperada
-`output.json` debe contener un JSON estructurado con esta forma general:
-```json
-{
-  "courses": [...],
-  "constraints": {
-    "hard": [...],
-    "soft": [...],
-    "optimization": { "objectives": [...] },
-    "scoring": { "mode": "fixed", "per": 30 }
-  },
-  "max_per_day": 3,
-  "top_n": 3
-}
-```
+## 11) Integracion con Unity
+La integracion oficial usa `integration_module.py` como API principal.
+- Unity envia texto al endpoint `/agent`.
+- La respuesta devuelve `text`, `audio_base64`, `emotion_profile` y metadatos de horarios.
+- Los perfiles de emocion y las animaciones se resuelven en Unity a partir del perfil devuelto.
+- El flujo principal usa la API de Unity; las utilidades locales antiguas ya no forman parte del recorrido normal.
 
 ## Nuevo esquema canónico de `constraints` (DSL)
 
@@ -373,7 +315,7 @@ Ejemplos rápidos
 "optimization": { "primary": "maximize_courses", "secondary": ["minimize_days"] }
 ```
 
-Uso en `main.py` / endpoint `/schedule/test` (payload mínimo):
+Uso recomendado en el endpoint `/schedule/test` (payload mínimo):
 
 ```json
 {

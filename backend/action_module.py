@@ -31,9 +31,9 @@ class ActionModule:
 
         Contrato recomendado:
         {
-            "course": "Bases de Datos",
-            "group": "A",
-            "professor": "Perez",
+            "course": "Nombre del curso",
+            "group": "Grupo o seccion",
+            "professor": "Profesor",
             "meetings": [
                 {"day": "Lunes", "start": "08:00", "end": "10:00"},
                 {"day": "Miércoles", "start": "10:00", "end": "12:00"}
@@ -66,6 +66,12 @@ class ActionModule:
 
     def _count_distinct_courses(self, schedule: List[Dict[str, Any]]) -> int:
         return len({block.get("course") for block in schedule if block.get("course")})
+
+    def _is_non_empty_schedule(self, schedule: List[Dict[str, Any]]) -> bool:
+        """
+        Un horario valido debe tener al menos un bloque y al menos un curso identificado.
+        """
+        return bool(schedule) and self._count_distinct_courses(schedule) > 0
 
     def _group_sections_by_course_name(self, courses: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
         """
@@ -153,7 +159,8 @@ class ActionModule:
             day_count: Dict[str, int],
         ) -> None:
             if course_index == len(sections_per_course):
-                valid_schedules.append(list(partial_schedule))
+                if partial_schedule:
+                    valid_schedules.append(list(partial_schedule))
                 return
 
             for section in sections_per_course[course_index]:
@@ -192,7 +199,7 @@ class ActionModule:
                 rollback(added_blocks, partial_schedule, day_count)
 
         backtrack(0, [], {})
-        return valid_schedules
+        return [schedule for schedule in valid_schedules if self._is_non_empty_schedule(schedule)]
 
     def score_schedule(self, schedule: List[Dict[str, Any]], constraints: Dict[str, Any]) -> int:
         """
@@ -218,7 +225,8 @@ class ActionModule:
         Genera todas las combinaciones válidas y devuelve las top_n mejores según score.
         """
         all_valid = self.generate_all_schedules(courses, constraints, max_per_day)
-        scored = [(self.score_schedule(s, constraints), s) for s in all_valid]
+        non_empty = [schedule for schedule in all_valid if self._is_non_empty_schedule(schedule)]
+        scored = [(self.score_schedule(s, constraints), s) for s in non_empty]
         scored.sort(key=lambda x: x[0], reverse=True)
         best = [s for score, s in scored[:top_n]]
         return best

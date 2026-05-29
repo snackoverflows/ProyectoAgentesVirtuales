@@ -61,7 +61,7 @@ namespace ProyectoAgentesVirtuales.UnityBridge
             {
                 emotion = "thinking",
                 animationState = "Thinking",
-                durationSeconds = 2.2f,
+                durationSeconds = 0f,
                 blendShapes = new[]
                 {
                     new BlendShapeEmotionTarget
@@ -105,15 +105,12 @@ namespace ProyectoAgentesVirtuales.UnityBridge
             ResolveReferences();
             RebuildProfilesCache();
             CacheBaseBlendShapeWeights();
-            Debug.Log($"[AvatarEmotionDriver] Awake. Animator={(animator != null ? animator.name : "null")}, Controller={(animator != null && animator.runtimeAnimatorController != null ? animator.runtimeAnimatorController.name : "null")}, FaceRenderer={(faceRenderer != null ? faceRenderer.name : "null")}");
             ResetToNeutralImmediate();
         }
 
         public void ApplyProfile(string emotionProfile)
         {
             string normalizedEmotion = NormalizeKey(emotionProfile);
-
-            Debug.Log($"[AvatarEmotionDriver] ApplyProfile emotionProfile='{normalizedEmotion}'");
 
             if (!profileByEmotion.TryGetValue(normalizedEmotion, out EmotionAnimationProfile profile))
             {
@@ -143,11 +140,15 @@ namespace ProyectoAgentesVirtuales.UnityBridge
             PlayAnimationIfPossible(targetState);
             ApplyBlendShapes(profile.blendShapes);
 
-            float durationSeconds = GetAnimationDurationSeconds(targetState, profile.durationSeconds);
-            if (durationSeconds > 0f)
+            if (profile.durationSeconds > 0f)
             {
-                resetRoutine = StartCoroutine(ReturnToNeutralAfter(durationSeconds));
+                resetRoutine = StartCoroutine(ReturnToNeutralAfter(profile.durationSeconds));
             }
+        }
+
+        public void PlayThinkingLoop()
+        {
+            ApplyProfile("thinking");
         }
 
         public void ApplyFromMetadata(string animation, string emotion)
@@ -176,32 +177,11 @@ namespace ProyectoAgentesVirtuales.UnityBridge
             resetRoutine = null;
         }
 
-        private float GetAnimationDurationSeconds(string stateName, float fallbackDurationSeconds)
-        {
-            if (animator != null && animator.runtimeAnimatorController != null && !string.IsNullOrWhiteSpace(stateName))
-            {
-                AnimationClip matchedClip = animator.runtimeAnimatorController.animationClips.FirstOrDefault(clip =>
-                    clip != null && clip.name.Equals(stateName, StringComparison.OrdinalIgnoreCase));
-
-                if (matchedClip != null)
-                {
-                    float clipDuration = matchedClip.length;
-                    if (clipDuration > 0f)
-                    {
-                        return clipDuration;
-                    }
-                }
-            }
-
-            return Mathf.Max(0f, fallbackDurationSeconds);
-        }
-
         private void ResolveReferences()
         {
             if (animator == null)
             {
                 animator = GetComponentInChildren<Animator>(true);
-                Debug.Log($"[AvatarEmotionDriver] ResolveReferences found Animator={(animator != null ? animator.name : "null")}");
             }
 
             if (audioPlayer == null)
@@ -376,13 +356,10 @@ namespace ProyectoAgentesVirtuales.UnityBridge
         {
             if (animator == null || string.IsNullOrWhiteSpace(stateName))
             {
-                Debug.LogWarning($"[AvatarEmotionDriver] PlayAnimationIfPossible skipped. Animator={(animator != null ? animator.name : "null")}, state='{stateName}'");
                 return;
             }
 
             int stateHash = Animator.StringToHash(stateName);
-            bool hasState = animator.HasState(0, stateHash);
-            Debug.Log($"[AvatarEmotionDriver] PlayAnimationIfPossible state='{stateName}', hasState={hasState}, controller={(animator.runtimeAnimatorController != null ? animator.runtimeAnimatorController.name : "null")}");
             if (animator.HasState(0, stateHash))
             {
                 animator.CrossFade(stateHash, crossFadeSeconds, 0);
@@ -394,12 +371,7 @@ namespace ProyectoAgentesVirtuales.UnityBridge
                 int idleHash = Animator.StringToHash(idleStateName);
                 if (animator.HasState(0, idleHash))
                 {
-                    Debug.LogWarning($"[AvatarEmotionDriver] State '{stateName}' not found. Falling back to idle '{idleStateName}'.");
                     animator.CrossFade(idleHash, crossFadeSeconds, 0);
-                }
-                else
-                {
-                    Debug.LogWarning($"[AvatarEmotionDriver] Neither state '{stateName}' nor idle '{idleStateName}' exists in layer 0.");
                 }
             }
         }

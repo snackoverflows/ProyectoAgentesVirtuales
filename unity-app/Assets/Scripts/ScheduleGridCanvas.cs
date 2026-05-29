@@ -1,4 +1,4 @@
-using System;
+﻿using System;
 using System.Collections.Generic;
 using System.Linq;
 using TMPro;
@@ -150,6 +150,7 @@ namespace ProyectoAgentesVirtuales.UnityBridge
         [SerializeField] private Vector2 titleSpacing = new Vector2(0f, 10f);
         [SerializeField] private Vector2 subtitleSpacing = new Vector2(0f, 14f);
         [SerializeField] private Vector2 gridTopSpacing = new Vector2(0f, 12f);
+        [SerializeField] private float gridHorizontalPadding = 150f;
         [SerializeField] private float titleHeight = 42f;
         [SerializeField] private float subtitleHeight = 28f;
         [SerializeField] private int maxVisibleSchedules = 3;
@@ -174,7 +175,9 @@ namespace ProyectoAgentesVirtuales.UnityBridge
         [SerializeField] private Color emptySlotText = new Color(0.88f, 0.90f, 0.94f, 0.75f);
 
         private RectTransform rootPanel;
-        private RectTransform controlsPanel;
+        private RectTransform controlsLeftPanel;
+        private RectTransform controlsRightPanel;
+        private RectTransform scheduleNavPanel;
         private RectTransform constraintsPanel;
         private RectTransform coursesPanel;
         private RectTransform gridRoot;
@@ -443,8 +446,30 @@ namespace ProyectoAgentesVirtuales.UnityBridge
             subtitleText.transform.SetParent(contentObject.transform, false);
             AddLayout(subtitleText.rectTransform, subtitleHeight);
 
+            GameObject gridContainerObject = new GameObject("GridContainer", typeof(RectTransform));
+            gridContainerObject.transform.SetParent(contentObject.transform, false);
+            RectTransform gridContainerRect = gridContainerObject.GetComponent<RectTransform>();
+            gridContainerRect.anchorMin = new Vector2(0f, 0f);
+            gridContainerRect.anchorMax = new Vector2(1f, 1f);
+            gridContainerRect.offsetMin = new Vector2(0f, 0f);
+            gridContainerRect.offsetMax = new Vector2(0f, 0f);
+            gridContainerRect.pivot = new Vector2(0.5f, 0.5f);
+
+            HorizontalLayoutGroup gridContainerLayout = gridContainerObject.AddComponent<HorizontalLayoutGroup>();
+            gridContainerLayout.padding = new RectOffset(Mathf.RoundToInt(gridHorizontalPadding), Mathf.RoundToInt(gridHorizontalPadding), 0, 0);
+            gridContainerLayout.childAlignment = TextAnchor.UpperCenter;
+            gridContainerLayout.childControlHeight = true;
+            gridContainerLayout.childControlWidth = true;
+            gridContainerLayout.childForceExpandHeight = false;
+            gridContainerLayout.childForceExpandWidth = true;
+            gridContainerLayout.spacing = 0f;
+
+            LayoutElement gridContainerElement = gridContainerObject.AddComponent<LayoutElement>();
+            gridContainerElement.flexibleWidth = 1f;
+            gridContainerElement.flexibleHeight = 1f;
+
             GameObject gridObject = new GameObject("Grid", typeof(RectTransform));
-            gridObject.transform.SetParent(contentObject.transform, false);
+            gridObject.transform.SetParent(gridContainerObject.transform, false);
             gridRoot = gridObject.GetComponent<RectTransform>();
             gridRoot.anchorMin = new Vector2(0f, 0f);
             gridRoot.anchorMax = new Vector2(1f, 1f);
@@ -464,11 +489,13 @@ namespace ProyectoAgentesVirtuales.UnityBridge
             ContentSizeFitter gridFitter = gridObject.AddComponent<ContentSizeFitter>();
             gridFitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
             gridFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            BuildScheduleNavigation(contentObject.transform);
         }
 
         private void BuildControls()
         {
-            if (controlsPanel != null)
+            if (controlsLeftPanel != null || controlsRightPanel != null)
             {
                 return;
             }
@@ -478,50 +505,110 @@ namespace ProyectoAgentesVirtuales.UnityBridge
                 return;
             }
 
-            GameObject controlsObject = new GameObject("ScheduleControls", typeof(RectTransform));
-            controlsObject.transform.SetParent(targetCanvas.transform, false);
-            controlsPanel = controlsObject.GetComponent<RectTransform>();
-            controlsPanel.anchorMin = new Vector2(0f, 1f);
-            controlsPanel.anchorMax = new Vector2(0f, 1f);
-            controlsPanel.pivot = new Vector2(0f, 1f);
-            controlsPanel.anchoredPosition = new Vector2(controlsOffset.x, -controlsOffset.y);
+            GameObject controlsLeftObject = new GameObject("ScheduleControlsLeft", typeof(RectTransform));
+            controlsLeftObject.transform.SetParent(targetCanvas.transform, false);
+            controlsLeftPanel = controlsLeftObject.GetComponent<RectTransform>();
+            controlsLeftPanel.anchorMin = new Vector2(0f, 1f);
+            controlsLeftPanel.anchorMax = new Vector2(0f, 1f);
+            controlsLeftPanel.pivot = new Vector2(0f, 1f);
+            controlsLeftPanel.anchoredPosition = new Vector2(controlsOffset.x, -controlsOffset.y);
 
-            HorizontalLayoutGroup layout = controlsObject.AddComponent<HorizontalLayoutGroup>();
-            layout.spacing = controlButtonSpacing;
-            layout.childAlignment = TextAnchor.MiddleLeft;
-            layout.childControlHeight = true;
-            layout.childControlWidth = true;
-            layout.childForceExpandHeight = false;
-            layout.childForceExpandWidth = false;
+            HorizontalLayoutGroup leftLayout = controlsLeftObject.AddComponent<HorizontalLayoutGroup>();
+            leftLayout.spacing = controlButtonSpacing;
+            leftLayout.childAlignment = TextAnchor.MiddleLeft;
+            leftLayout.childControlHeight = true;
+            leftLayout.childControlWidth = true;
+            leftLayout.childForceExpandHeight = false;
+            leftLayout.childForceExpandWidth = false;
 
-            ContentSizeFitter fitter = controlsObject.AddComponent<ContentSizeFitter>();
-            fitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
-            fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+            ContentSizeFitter leftFitter = controlsLeftObject.AddComponent<ContentSizeFitter>();
+            leftFitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+            leftFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
-            toggleButton = CreateControlButton(controlsObject.transform, "ToggleGridButton", "Mostrar horario", controlButtonWidth);
-            toggleButton.onClick.AddListener(ToggleGridVisibility);
-            toggleButtonLabel = toggleButton.GetComponentInChildren<TMP_Text>(true);
-
-            previousButton = CreateControlButton(controlsObject.transform, "PreviousScheduleButton", "Anterior", 130f);
-            previousButton.onClick.AddListener(ShowPreviousSchedule);
-            previousButtonLabel = previousButton.GetComponentInChildren<TMP_Text>(true);
-
-            nextButton = CreateControlButton(controlsObject.transform, "NextScheduleButton", "Siguiente", 130f);
-            nextButton.onClick.AddListener(ShowNextSchedule);
-            nextButtonLabel = nextButton.GetComponentInChildren<TMP_Text>(true);
-
-            constraintsButton = CreateControlButton(controlsObject.transform, "ToggleConstraintsButton", "Restricciones", 160f);
+            constraintsButton = CreateControlButton(controlsLeftObject.transform, "ToggleConstraintsButton", "Restricciones", 160f);
             constraintsButton.onClick.AddListener(ToggleConstraintsVisibility);
             constraintsButtonLabel = constraintsButton.GetComponentInChildren<TMP_Text>(true);
 
-            coursesButton = CreateControlButton(controlsObject.transform, "ToggleCoursesButton", "Cursos", 130f);
+            coursesButton = CreateControlButton(controlsLeftObject.transform, "ToggleCoursesButton", "Cursos", 130f);
             coursesButton.onClick.AddListener(ToggleCoursesVisibility);
             coursesButtonLabel = coursesButton.GetComponentInChildren<TMP_Text>(true);
 
-            pageLabel = CreateLabel(controlsObject.transform, "PageLabel", "1/1", 26, FontStyles.Bold, new Color(1f, 1f, 1f, 0.9f));
-            AddLayout(pageLabel.rectTransform, controlButtonHeight);
+            GameObject controlsRightObject = new GameObject("ScheduleControlsRight", typeof(RectTransform));
+            controlsRightObject.transform.SetParent(targetCanvas.transform, false);
+            controlsRightPanel = controlsRightObject.GetComponent<RectTransform>();
+            controlsRightPanel.anchorMin = new Vector2(1f, 1f);
+            controlsRightPanel.anchorMax = new Vector2(1f, 1f);
+            controlsRightPanel.pivot = new Vector2(1f, 1f);
+            controlsRightPanel.anchoredPosition = new Vector2(-controlsOffset.x, -controlsOffset.y);
+
+            HorizontalLayoutGroup rightLayout = controlsRightObject.AddComponent<HorizontalLayoutGroup>();
+            rightLayout.spacing = controlButtonSpacing;
+            rightLayout.childAlignment = TextAnchor.MiddleRight;
+            rightLayout.childControlHeight = true;
+            rightLayout.childControlWidth = true;
+            rightLayout.childForceExpandHeight = false;
+            rightLayout.childForceExpandWidth = false;
+
+            ContentSizeFitter rightFitter = controlsRightObject.AddComponent<ContentSizeFitter>();
+            rightFitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+            rightFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            toggleButton = CreateControlButton(controlsRightObject.transform, "ToggleGridButton", "Mostrar horario", controlButtonWidth);
+            toggleButton.onClick.AddListener(ToggleGridVisibility);
+            toggleButtonLabel = toggleButton.GetComponentInChildren<TMP_Text>(true);
 
             UpdatePaginationUI();
+        }
+
+        private void BuildScheduleNavigation(Transform parent)
+        {
+            if (scheduleNavPanel != null || parent == null)
+            {
+                return;
+            }
+
+            GameObject navObject = new GameObject("ScheduleNav", typeof(RectTransform));
+            navObject.transform.SetParent(parent, false);
+            navObject.transform.SetSiblingIndex(0);
+            scheduleNavPanel = navObject.GetComponent<RectTransform>();
+
+            HorizontalLayoutGroup navLayout = navObject.AddComponent<HorizontalLayoutGroup>();
+            navLayout.spacing = controlButtonSpacing;
+            navLayout.childAlignment = TextAnchor.MiddleCenter;
+            navLayout.childControlHeight = true;
+            navLayout.childControlWidth = true;
+            navLayout.childForceExpandHeight = false;
+            navLayout.childForceExpandWidth = false;
+
+            ContentSizeFitter navFitter = navObject.AddComponent<ContentSizeFitter>();
+            navFitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
+            navFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+            previousButton = CreateControlButton(navObject.transform, "PreviousScheduleButton", "Anterior", 130f);
+            previousButton.onClick.AddListener(ShowPreviousSchedule);
+            previousButtonLabel = previousButton.GetComponentInChildren<TMP_Text>(true);
+
+            if (titleText != null)
+            {
+                titleText.transform.SetParent(navObject.transform, false);
+                LayoutElement titleLayout = titleText.GetComponent<LayoutElement>();
+                if (titleLayout == null)
+                {
+                    titleLayout = titleText.gameObject.AddComponent<LayoutElement>();
+                }
+                titleLayout.preferredHeight = titleHeight;
+                titleLayout.minHeight = titleHeight;
+                titleLayout.flexibleWidth = 1f;
+            }
+
+            pageLabel = CreateLabel(navObject.transform, "PageLabel", "1/1", 26, FontStyles.Bold, new Color(1f, 1f, 1f, 0.9f));
+            AddLayout(pageLabel.rectTransform, controlButtonHeight);
+
+            nextButton = CreateControlButton(navObject.transform, "NextScheduleButton", "Siguiente", 130f);
+            nextButton.onClick.AddListener(ShowNextSchedule);
+            nextButtonLabel = nextButton.GetComponentInChildren<TMP_Text>(true);
+
+            UpdateNavigationVisibility();
         }
 
         private void BuildConstraintsPanel()
@@ -540,11 +627,11 @@ namespace ProyectoAgentesVirtuales.UnityBridge
             panelObject.transform.SetParent(targetCanvas.transform, false);
 
             constraintsPanel = panelObject.GetComponent<RectTransform>();
-            constraintsPanel.anchorMin = new Vector2(0f, 1f);
-            constraintsPanel.anchorMax = new Vector2(0f, 1f);
-            constraintsPanel.pivot = new Vector2(0f, 1f);
-            constraintsPanel.anchoredPosition = new Vector2(constraintsPanelOffset.x, -constraintsPanelOffset.y);
-            constraintsPanel.sizeDelta = new Vector2(constraintsPanelWidth, constraintsPanelHeight);
+            constraintsPanel.anchorMin = new Vector2(0.5f, 0.5f);
+            constraintsPanel.anchorMax = new Vector2(0.5f, 0.5f);
+            constraintsPanel.pivot = new Vector2(0.5f, 0.5f);
+            constraintsPanel.anchoredPosition = Vector2.zero;
+            constraintsPanel.sizeDelta = canvasSize;
 
             Image panelImage = panelObject.GetComponent<Image>();
             panelImage.color = new Color(0.09f, 0.10f, 0.13f, 0.96f);
@@ -570,7 +657,7 @@ namespace ProyectoAgentesVirtuales.UnityBridge
             constraintsText.textWrappingMode = TextWrappingModes.Normal;
             constraintsText.fontSizeMin = 14;
             constraintsText.fontSizeMax = 18;
-            AddLayout(constraintsText.rectTransform, constraintsPanelHeight - 60f);
+            AddLayout(constraintsText.rectTransform, Mathf.Max(120f, constraintsPanel.sizeDelta.y - 60f));
         }
 
         private void BuildCoursesPanel()
@@ -589,11 +676,11 @@ namespace ProyectoAgentesVirtuales.UnityBridge
             panelObject.transform.SetParent(targetCanvas.transform, false);
 
             coursesPanel = panelObject.GetComponent<RectTransform>();
-            coursesPanel.anchorMin = new Vector2(1f, 1f);
-            coursesPanel.anchorMax = new Vector2(1f, 1f);
-            coursesPanel.pivot = new Vector2(1f, 1f);
-            coursesPanel.anchoredPosition = new Vector2(-coursesPanelOffset.x, -coursesPanelOffset.y);
-            coursesPanel.sizeDelta = new Vector2(coursesPanelWidth, coursesPanelHeight);
+            coursesPanel.anchorMin = new Vector2(0.5f, 0.5f);
+            coursesPanel.anchorMax = new Vector2(0.5f, 0.5f);
+            coursesPanel.pivot = new Vector2(0.5f, 0.5f);
+            coursesPanel.anchoredPosition = Vector2.zero;
+            coursesPanel.sizeDelta = canvasSize;
 
             Image panelImage = panelObject.GetComponent<Image>();
             panelImage.color = new Color(0.09f, 0.10f, 0.13f, 0.96f);
@@ -619,7 +706,7 @@ namespace ProyectoAgentesVirtuales.UnityBridge
             coursesText.textWrappingMode = TextWrappingModes.Normal;
             coursesText.fontSizeMin = 14;
             coursesText.fontSizeMax = 18;
-            AddLayout(coursesText.rectTransform, coursesPanelHeight - 60f);
+            AddLayout(coursesText.rectTransform, Mathf.Max(120f, coursesPanel.sizeDelta.y - 60f));
         }
 
         private Button CreateControlButton(Transform parent, string objectName, string text, float width)
@@ -694,18 +781,20 @@ namespace ProyectoAgentesVirtuales.UnityBridge
             bool hasSchedules = HasSchedules();
             if (previousButton != null)
             {
-                previousButton.interactable = hasSchedules;
+                previousButton.interactable = visible && hasSchedules;
             }
 
             if (nextButton != null)
             {
-                nextButton.interactable = hasSchedules;
+                nextButton.interactable = visible && hasSchedules;
             }
 
             if (visible)
             {
                 RefreshSelectedSchedule();
             }
+
+            UpdateNavigationVisibility();
         }
 
         private void SetConstraintsVisible(bool visible)
@@ -794,43 +883,56 @@ namespace ProyectoAgentesVirtuales.UnityBridge
 
         private string BuildCoursesSummary(AgentStatePayload state)
         {
-            AgentCoursePayload[] courses = state?.draft?.courses;
-            if (courses == null || courses.Length == 0)
+            if (state == null || state.draft == null)
             {
                 return "Sin cursos cargados.";
             }
 
-            List<string> lines = new List<string>();
-            IEnumerable<IGrouping<string, AgentCoursePayload>> groupedCourses = courses
-                .Where(course => course != null && !string.IsNullOrWhiteSpace(course.course))
-                .GroupBy(course => course.course.Trim())
-                .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase);
-
-            foreach (IGrouping<string, AgentCoursePayload> group in groupedCourses)
+            AgentCoursePayload[] courses = state.draft.courses ?? Array.Empty<AgentCoursePayload>();
+            if (courses.Length == 0)
             {
-                lines.Add($"{group.Key}:");
-
-                foreach (AgentCoursePayload course in group)
-                {
-                    string itemText = FormatCourseItem(course);
-                    if (!string.IsNullOrWhiteSpace(itemText))
-                    {
-                        lines.Add($"- {itemText}");
-                    }
-                }
-
-                lines.Add(string.Empty);
+                return "Sin cursos cargados.";
             }
 
-            while (lines.Count > 0 && string.IsNullOrWhiteSpace(lines[lines.Count - 1]))
+            var grouped = new Dictionary<string, List<AgentCoursePayload>>(StringComparer.OrdinalIgnoreCase);
+            var order = new List<string>();
+
+            foreach (AgentCoursePayload course in courses)
             {
-                lines.RemoveAt(lines.Count - 1);
+                string courseName = string.IsNullOrWhiteSpace(course?.course) ? "Curso sin nombre" : course.course.Trim();
+                if (!grouped.ContainsKey(courseName))
+                {
+                    grouped[courseName] = new List<AgentCoursePayload>();
+                    order.Add(courseName);
+                }
+
+                grouped[courseName].Add(course);
+            }
+
+            var lines = new List<string>();
+            foreach (string courseName in order)
+            {
+                if (lines.Count > 0)
+                {
+                    lines.Add(string.Empty);
+                }
+
+                lines.Add($"{courseName}:");
+
+                foreach (AgentCoursePayload course in grouped[courseName])
+                {
+                    string line = FormatCourseLine(course);
+                    if (!string.IsNullOrWhiteSpace(line))
+                    {
+                        lines.Add($"- {line}");
+                    }
+                }
             }
 
             return lines.Count == 0 ? "Sin cursos cargados." : string.Join("\n", lines);
         }
 
-        private string FormatCourseItem(AgentCoursePayload course)
+        private string FormatCourseLine(AgentCoursePayload course)
         {
             if (course == null)
             {
@@ -846,11 +948,10 @@ namespace ProyectoAgentesVirtuales.UnityBridge
 
             if (meetings.Count == 0)
             {
-                return $"{group}, sin horario, {professor}";
+                return $"{group} - {professor} - sin horario";
             }
 
-            List<string> dayParts = new List<string>();
-            string timePart = string.Empty;
+            List<string> meetingParts = new List<string>();
 
             foreach (AgentCourseMeetingPayload meeting in meetings)
             {
@@ -859,51 +960,22 @@ namespace ProyectoAgentesVirtuales.UnityBridge
                     continue;
                 }
 
-                string dayLabel = MapDayShort(meeting.day);
-                if (!string.IsNullOrWhiteSpace(dayLabel) && !dayParts.Contains(dayLabel))
+                string dayLabel = NormalizeDay(meeting.day);
+                string start = NormalizeTimeLong(meeting.start);
+                string end = NormalizeTimeLong(meeting.end);
+                if (string.IsNullOrWhiteSpace(dayLabel) || string.IsNullOrWhiteSpace(start) || string.IsNullOrWhiteSpace(end))
                 {
-                    dayParts.Add(dayLabel);
+                    continue;
                 }
 
-                string start = NormalizeTimeShort(meeting.start);
-                string end = NormalizeTimeShort(meeting.end);
-                if (string.IsNullOrWhiteSpace(timePart) && !string.IsNullOrWhiteSpace(start) && !string.IsNullOrWhiteSpace(end))
-                {
-                    timePart = $"{start}-{end}";
-                }
+                meetingParts.Add($"{dayLabel} {start} a {end}");
             }
 
-            if (string.IsNullOrWhiteSpace(timePart))
-            {
-                timePart = "sin horario";
-            }
-
-            string daysText = dayParts.Count == 0 ? "sin días" : string.Join(" y ", dayParts);
-            return $"{group}, {timePart}, {daysText}, {professor}";
+            string meetingsText = meetingParts.Count == 0 ? "sin horario" : string.Join(" - ", meetingParts);
+            return $"{group} - {professor} - {meetingsText}";
         }
 
-        private string MapDayShort(string day)
-        {
-            if (string.IsNullOrWhiteSpace(day))
-            {
-                return string.Empty;
-            }
-
-            string normalized = NormalizeDay(day);
-            if (string.IsNullOrWhiteSpace(normalized))
-            {
-                return string.Empty;
-            }
-
-            if (normalized == "Lunes") return "L";
-            if (normalized == "Martes") return "K";
-            if (normalized == "Miércoles") return "M";
-            if (normalized == "Jueves") return "J";
-            if (normalized == "Viernes") return "V";
-            return normalized;
-        }
-
-        private string NormalizeTimeShort(string timeValue)
+        private string NormalizeTimeLong(string timeValue)
         {
             if (string.IsNullOrWhiteSpace(timeValue))
             {
@@ -926,14 +998,7 @@ namespace ProyectoAgentesVirtuales.UnityBridge
 
         private string BuildRawRuleText(AgentConstraintRule rule)
         {
-            try
-            {
-                return JsonUtility.ToJson(rule, false);
-            }
-            catch (Exception)
-            {
-                return "(restricción no reconocida)";
-            }
+            return "Regla no reconocida o incompleta.";
         }
 
         private string BuildConstraintsSummary(AgentStatePayload state)
@@ -1064,8 +1129,23 @@ namespace ProyectoAgentesVirtuales.UnityBridge
 
             if (type == "max_per_category" || type == "tag")
             {
-                string label = !string.IsNullOrWhiteSpace(rule.category) ? rule.category : (rule.target ?? "categoría");
-                return $"Máximo {rule.value} cursos de {label}.";
+                string label = !string.IsNullOrWhiteSpace(rule.category)
+                    ? rule.category
+                    : (!string.IsNullOrWhiteSpace(rule.target) ? rule.target : FirstNonEmptyValue(rule.values, "categoría"));
+
+                if (op == "avoid" || op == "exclude")
+                {
+                    return $"Evitar etiqueta {label}.";
+                }
+
+                if (op == "prefer" || op == "include")
+                {
+                    return $"Preferir etiqueta {label}.";
+                }
+
+                return rule.value > 0
+                    ? $"Límite {rule.value} para etiqueta {label}."
+                    : $"Regla de etiqueta {label}.";
             }
 
             if (type == "day" && rule.days != null && rule.days.Length > 0)
@@ -1084,23 +1164,39 @@ namespace ProyectoAgentesVirtuales.UnityBridge
                 return $"{Capitalize(op)} {daysText}.";
             }
 
-            if ((type == "professor" || type == "course" || type == "group") && !string.IsNullOrWhiteSpace(rule.target))
+            if (type == "professor" || type == "course" || type == "group" || type == "campus")
             {
+                string entity = FirstNonEmptyValue(rule.values, rule.target);
+                if (string.IsNullOrWhiteSpace(entity))
+                {
+                    return "Regla de entidad sin valores.";
+                }
+
                 if (op == "prefer")
                 {
-                    return $"Preferir {rule.target}.";
+                    return $"Preferir {entity}.";
                 }
 
                 if (op == "avoid" || op == "exclude")
                 {
-                    return $"Evitar {rule.target}.";
+                    return $"Evitar {entity}.";
                 }
 
-                return $"{Capitalize(op)} {rule.target}.";
+                if (op == "include")
+                {
+                    return $"Incluir {entity}.";
+                }
+
+                return $"{Capitalize(op)} {entity}.";
             }
 
             if (type == "metric" && !string.IsNullOrWhiteSpace(rule.target))
             {
+                if (op == "<=" || op == ">=" || op == "==")
+                {
+                    return $"{rule.target} {op} {rule.value}.";
+                }
+
                 if (op == "prefer" || op == "include")
                 {
                     return $"Preferir {rule.target} con valor {rule.value}.";
@@ -1115,6 +1211,22 @@ namespace ProyectoAgentesVirtuales.UnityBridge
             }
 
             return BuildRawRuleText(rule);
+        }
+
+        private string FirstNonEmptyValue(string[] values, string fallback = "")
+        {
+            if (values != null)
+            {
+                foreach (string value in values)
+                {
+                    if (!string.IsNullOrWhiteSpace(value))
+                    {
+                        return value.Trim();
+                    }
+                }
+            }
+
+            return string.IsNullOrWhiteSpace(fallback) ? string.Empty : fallback.Trim();
         }
 
         private string FormatObjective(AgentObjectivePayload objective)
@@ -1226,6 +1338,29 @@ namespace ProyectoAgentesVirtuales.UnityBridge
             if (nextButton != null)
             {
                 nextButton.interactable = HasSchedules();
+            }
+
+            UpdateNavigationVisibility();
+        }
+
+        private void UpdateNavigationVisibility()
+        {
+            if (scheduleNavPanel == null)
+            {
+                return;
+            }
+
+            scheduleNavPanel.gameObject.SetActive(gridVisible);
+
+            bool hasSchedules = HasSchedules();
+            if (previousButton != null)
+            {
+                previousButton.interactable = gridVisible && hasSchedules;
+            }
+
+            if (nextButton != null)
+            {
+                nextButton.interactable = gridVisible && hasSchedules;
             }
         }
 

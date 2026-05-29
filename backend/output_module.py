@@ -55,4 +55,6 @@ class OutputModule:
             output["schedule_report"] = schedule_report
             output["schedule_json"] = json.dumps(schedule_report, ensure_ascii=False, indent=2)
 
+        output["output_json"] = json.dumps(dict(output), ensure_ascii=False, indent=2)
+
         return output

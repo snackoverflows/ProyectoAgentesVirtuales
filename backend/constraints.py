@@ -47,6 +47,7 @@ KNOWN_METRICS = {
 
 SUPPORTED_SCORING_MODES = {"fixed", "linear"}
 SUPPORTED_AGGREGATIONS = {"sum", "max", "min", "count"}
+SUPPORTED_OBJECTIVE_OPERATORS = {"maximize", "minimize"}
 
 
 def _is_dict(value: Any) -> bool:
@@ -307,6 +308,9 @@ def _normalize_objective(item: Any) -> Tuple[Optional[Dict[str, Any]], List[str]
     target = _strip_text(item.get("target"))
     if not target:
         errors.append("optimization objective requires a target.")
+    if operator not in SUPPORTED_OBJECTIVE_OPERATORS:
+        errors.append(f"Unsupported optimization operator: {item.get('operator')!r}. Use 'maximize' or 'minimize'.")
+
     priority = _to_int(item.get("priority"), None)
     if priority is None:
         errors.append("optimization objective requires an integer 'priority'.")
@@ -322,6 +326,39 @@ def _normalize_objective(item: Any) -> Tuple[Optional[Dict[str, Any]], List[str]
 
     normalized = {"operator": operator, "target": target, "weight": weight, "reason": reason, "priority": priority, "aggregation": aggregation}
     return normalized, errors
+
+
+def _ensure_primary_distinct_courses_objective(objectives: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Garantiza que el ranking priorice siempre maximizar cursos distintos
+    antes de otros objetivos de optimizacion.
+    """
+    has_distinct_courses = any(
+        _is_dict(item)
+        and _strip_text(item.get("target")) == "distinct_courses"
+        and _strip_text(item.get("operator")) == "maximize"
+        for item in objectives
+    )
+    if has_distinct_courses:
+        return objectives
+
+    shifted: List[Dict[str, Any]] = []
+    for item in objectives:
+        if not _is_dict(item):
+            continue
+        updated = dict(item)
+        updated["priority"] = int(_to_int(updated.get("priority"), 9999) or 9999) + 1
+        shifted.append(updated)
+
+    primary = {
+        "operator": "maximize",
+        "target": "distinct_courses",
+        "priority": 1,
+        "weight": 1,
+        "aggregation": "sum",
+        "reason": "Base objective: maximize distinct courses",
+    }
+    return [primary] + shifted
 
 
 def validate_rule(rule: Any, kind: str = "hard") -> Tuple[Optional[Dict[str, Any]], List[str]]:
@@ -491,18 +528,8 @@ def normalize_constraints(raw: Dict[str, Any]) -> Dict[str, Any]:
             if objective is not None:
                 parsed.append(objective)
 
-        # sort by priority ascending (1 highest)
-        parsed_sorted = sorted(parsed, key=lambda o: int(o.get("priority", 9999)))
-        if not parsed_sorted:
-            parsed_sorted = [
-                {
-                    "operator": "maximize",
-                    "target": "distinct_courses",
-                    "priority": 1,
-                    "weight": 1,
-                    "aggregation": "sum",
-                }
-            ]
+        parsed_with_primary = _ensure_primary_distinct_courses_objective(parsed)
+        parsed_sorted = sorted(parsed_with_primary, key=lambda o: int(o.get("priority", 9999)))
         normalized["optimization"]["objectives"] = parsed_sorted
 
     scoring_value = raw.get("scoring")
