@@ -1,8 +1,6 @@
 ﻿from fastapi import FastAPI, File, UploadFile, Form
-from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
-from typing import Optional, List, Tuple, Iterator, Literal, Dict, Any
-import base64
+from typing import Optional, List, Tuple, Literal, Dict, Any
 import json
 import os
 
@@ -192,49 +190,12 @@ async def process_agent(req: AgentRequest):
 @app.post("/agent/realtime")
 async def process_agent_realtime(req: AgentRequest):
     llm_response, warnings, _, _, emotion_profile = _build_agent_response(req)
-
-    stream_iter, tts_warnings = tts_error_handler.run_with_retry(
-        tts_module.stream_with_fallback,
-        llm_response,
-        mode=req.tts_mode,
-        fallback=(iter(()), ["No se pudo iniciar el stream de audio."]),
+    return audio_service.build_realtime_stream_response(
+        tts_mode=req.tts_mode,
+        llm_response=llm_response,
+        warnings=warnings,
+        emotion_profile=emotion_profile,
     )
-    warnings.extend(tts_warnings)
-
-    def event_stream() -> Iterator[bytes]:
-        meta = {
-            "event": "meta",
-            "text": llm_response,
-            "emotion_profile": emotion_profile,
-            "warnings": warnings,
-        }
-        yield (json.dumps(meta, ensure_ascii=False) + "\n").encode("utf-8")
-
-        try:
-            for chunk in stream_iter:
-                payload = {
-                    "event": "audio_chunk",
-                    "audio_base64": base64.b64encode(chunk).decode("utf-8"),
-                }
-                yield (json.dumps(payload) + "\n").encode("utf-8")
-        except Exception:
-            fallback_audio = tts_error_handler.run_with_retry(tts_module.generate_audio, llm_response, fallback=b"")
-            warning_payload = {
-                "event": "warning",
-                "message": "Stream interrumpido; se entrega audio en modo batch.",
-            }
-            yield (json.dumps(warning_payload, ensure_ascii=False) + "\n").encode("utf-8")
-
-            if fallback_audio:
-                payload = {
-                    "event": "audio_chunk",
-                    "audio_base64": base64.b64encode(fallback_audio).decode("utf-8"),
-                }
-                yield (json.dumps(payload) + "\n").encode("utf-8")
-
-        yield b'{"event":"done"}\n'
-
-    return StreamingResponse(event_stream(), media_type="application/x-ndjson")
 
 
 @app.post("/transcribe", response_model=AgentResponse, response_model_exclude_none=True)

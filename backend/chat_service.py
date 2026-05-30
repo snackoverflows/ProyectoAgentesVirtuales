@@ -1,6 +1,7 @@
 import json
-import re
 from typing import Any, Dict, List, Optional, Tuple
+
+from json_payload import extract_json_object
 
 
 class ChatService:
@@ -12,21 +13,10 @@ class ChatService:
         self.default_emotion_profile = default_emotion_profile
 
     def parse_agent_response_payload(self, raw_text: str) -> Dict[str, Any]:
-        stripped = raw_text.strip()
         try:
-            parsed = json.loads(stripped)
-            if isinstance(parsed, dict):
-                return parsed
-        except Exception:
-            pass
-
-        fenced_match = re.search(r"```(?:json)?\s*(\{.*\})\s*```", stripped, re.DOTALL)
-        if fenced_match:
-            parsed = json.loads(fenced_match.group(1).strip())
-            if isinstance(parsed, dict):
-                return parsed
-
-        return {"text": stripped, "emotion_profile": self.default_emotion_profile}
+            return extract_json_object(raw_text)
+        except (ValueError, json.JSONDecodeError, TypeError):
+            return {"text": (raw_text or "").strip(), "emotion_profile": self.default_emotion_profile}
 
     def run_chat_workflow(
         self,

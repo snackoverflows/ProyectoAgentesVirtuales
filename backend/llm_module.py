@@ -29,7 +29,6 @@ class LLMModule:
 
         self.available_emotion_profiles = self._load_emotion_profiles_from_env()
         self.client = genai.Client(api_key=self.api_key, vertexai=False)
-        self.history = []
 
     def _load_emotion_profiles_from_env(self) -> List[str]:
         raw_profiles = os.getenv("LLM_EMOTION_PROFILES", "neutral,friendly,thinking,sad,surprise,happy")
@@ -83,26 +82,19 @@ class LLMModule:
         prompt_text: str,
         history: Optional[List[Dict]] = None,
         system_prompt: Optional[str] = None,
-        store_user_text: Optional[str] = None,
     ) -> str:
-        contents = self._build_contents(prompt_text, history or self.history, system_prompt=system_prompt)
+        contents = self._build_contents(prompt_text, history or [], system_prompt=system_prompt)
 
         last_error = None
         for _ in range(3):
             try:
                 response = self.client.models.generate_content(model=self.model, contents=contents)
                 response_text = response.text.strip()
-                if store_user_text is not None:
-                    self.add_to_history("user", store_user_text)
-                    self.add_to_history("assistant", response_text)
                 return response_text
             except Exception as e:
                 last_error = e
 
         raise RuntimeError("LLM unavailable after retries") from last_error
-
-    def add_to_history(self, role: str, content: str):
-        self.history.append({"role": role, "content": content})
 
     def generate_response(
         self,
@@ -112,9 +104,8 @@ class LLMModule:
     ) -> str:
         return self._generate_text(
             user_text,
-            history=history or self.history,
+            history=history,
             system_prompt=system_prompt,
-            store_user_text=user_text,
         )
 
     def build_schedule_chat_prompt(
@@ -212,4 +203,4 @@ class LLMModule:
         history: Optional[List[Dict]] = None,
     ) -> str:
         prompt = self.build_schedule_chat_prompt(user_text, current_draft=current_draft, history=history)
-        return self._generate_text(prompt, history=history or self.history, store_user_text=user_text)
+        return self._generate_text(prompt, history=history)

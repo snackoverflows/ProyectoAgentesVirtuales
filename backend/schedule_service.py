@@ -1,8 +1,9 @@
 import json
-import re
 from typing import Any, Dict, List, Optional, Tuple
 
-import constraints as constraints_module
+from constraints_eval import evaluate_soft
+from constraints_schema import normalize_constraints, validate_constraints
+from json_payload import extract_json_object
 
 
 class ScheduleService:
@@ -43,24 +44,6 @@ class ScheduleService:
             "clear_constraints": "restriccion" in lowered or "restricciones" in lowered,
             "clear_schedules": "horario" in lowered or "horarios" in lowered,
         }
-
-    def extract_json_payload(self, raw_text: str) -> Dict[str, Any]:
-        stripped = raw_text.strip()
-        try:
-            return json.loads(stripped)
-        except Exception:
-            pass
-
-        fenced_match = re.search(r"```(?:json)?\s*(\{.*\})\s*```", stripped, re.DOTALL)
-        if fenced_match:
-            return json.loads(fenced_match.group(1).strip())
-
-        first_object = stripped.find("{")
-        last_object = stripped.rfind("}")
-        if first_object != -1 and last_object != -1 and last_object > first_object:
-            return json.loads(stripped[first_object:last_object + 1])
-
-        raise ValueError("LLM no devolvio un JSON valido")
 
     def _normalize_optional_int(self, payload: Dict[str, Any], key: str, default_value: int) -> Tuple[int, str]:
         raw_value = payload.get(key)
@@ -116,7 +99,7 @@ class ScheduleService:
         constraints = draft.get("constraints", {})
         if not isinstance(constraints, dict):
             return ["constraints debe ser un objeto."]
-        return constraints_module.validate_constraints(constraints)
+        return validate_constraints(constraints)
 
     def _build_contract_violation_message(self) -> str:
         return "Necesito corregir el formato del borrador antes de generar. Revisa cursos y restricciones para continuar."
@@ -202,8 +185,8 @@ class ScheduleService:
         coverage_ratio = min(1.0, max(0.0, distinct_courses / max(1, total_courses)))
         day_efficiency = max(0.0, min(1.0, 1.0 - ((max(1, distinct_days) - 1) / 6.0)))
 
-        normalized = constraints_module.normalize_constraints(constraints)
-        soft_raw = constraints_module.evaluate_soft(schedule, normalized)
+        normalized = normalize_constraints(constraints)
+        soft_raw = evaluate_soft(schedule, normalized)
         soft_component = (soft_raw / (abs(soft_raw) + 10.0)) if soft_raw != 0 else 0.0
         soft_ratio = max(0.0, min(1.0, (soft_component + 1.0) / 2.0))
 
@@ -278,8 +261,8 @@ class ScheduleService:
         log_debug("llm.schedule.raw", raw_llm_text)
 
         try:
-            parsed_state = self.extract_json_payload(raw_llm_text)
-        except Exception:
+            parsed_state = extract_json_object(raw_llm_text)
+        except (ValueError, json.JSONDecodeError, TypeError):
             parsed_state = {
                 "assistant_message": raw_llm_text,
                 "draft": current_draft,

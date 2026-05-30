@@ -1,6 +1,8 @@
 # action_module.py
 from typing import Any, List, Dict, Optional
-import constraints as constraints_module
+from constraints_eval import hard_violated, meeting_violates_hard
+from constraints_schema import normalize_constraints
+from constraints_score import rank_key_to_score, schedule_rank_key
 
 class ActionModule:
     """
@@ -107,7 +109,7 @@ class ActionModule:
         Genera combinaciones válidas respetando overlaps, hard constraints y el
         máximo de meetings por día.
         """
-        normalized_for_checks = constraints_module.normalize_constraints(constraints)
+        normalized_for_checks = normalize_constraints(constraints)
         max_meetings_per_day = float("inf") if max_per_day is None else max_per_day
 
         normalized_courses = self._group_sections_by_course_name(courses)
@@ -127,7 +129,7 @@ class ActionModule:
                     meeting_copy["course"] = section["course"]
                     meeting_copy["group"] = section["group"]
                     meeting_copy["professor"] = section.get("professor", meeting_copy.get("professor", "Indefinido"))
-                    if constraints_module.meeting_violates_hard(meeting_copy, normalized_for_checks):
+                    if meeting_violates_hard(meeting_copy, normalized_for_checks):
                         section_valid = False
                         break
                     normalized_meetings.append(meeting_copy)
@@ -186,7 +188,7 @@ class ActionModule:
                     day_count[day] = day_count.get(day, 0) + 1
                     added_blocks += 1
 
-                    if constraints_module.hard_violated(partial_schedule, normalized_for_checks):
+                    if hard_violated(partial_schedule, normalized_for_checks):
                         section_valid = False
                         break
 
@@ -207,10 +209,10 @@ class ActionModule:
         La prioridad principal es maximizar la cantidad de cursos distintos
         incluidos en el horario. Las preferencias blandas solo resuelven empates.
         """
-        normalized = constraints_module.normalize_constraints(constraints)
+        normalized = normalize_constraints(constraints)
 
-        rank_key = constraints_module.schedule_rank_key(schedule, normalized)
-        score = constraints_module.rank_key_to_score(rank_key)
+        rank_key = schedule_rank_key(schedule, normalized)
+        score = rank_key_to_score(rank_key)
 
         return int(score)
 

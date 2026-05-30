@@ -45,31 +45,27 @@ class STTModule:
 
         audio_file = ("voice.wav", audio_bytes, mime_type)
 
-        try:
-            print(f"[STTModule] Using model_id={self.model_id}, mime_type={mime_type}, bytes={len(audio_bytes)}")
-            resp = eleven.speech_to_text.convert(
-                model_id=self.model_id,
-                file=audio_file,
-                file_format="other" if mime_type != "audio/wav" else "other",
-            )
+        print(f"[STTModule] Using model_id={self.model_id}, mime_type={mime_type}, bytes={len(audio_bytes)}")
+        resp = eleven.speech_to_text.convert(
+            model_id=self.model_id,
+            file=audio_file,
+            file_format="other" if mime_type != "audio/wav" else "other",
+        )
 
-            for attr_name in ("text", "transcript", "transcription"):
-                attr_value = getattr(resp, attr_name, None)
-                if isinstance(attr_value, str) and attr_value.strip():
-                    return attr_value.strip()
+        for attr_name in ("text", "transcript", "transcription"):
+            attr_value = getattr(resp, attr_name, None)
+            if isinstance(attr_value, str) and attr_value.strip():
+                return attr_value.strip()
 
-            if isinstance(resp, str):
-                return resp.strip()
-            if isinstance(resp, bytes):
-                return resp.decode("utf-8", errors="ignore").strip()
-            if isinstance(resp, dict):
-                for key in ("text", "transcript", "transcription", "result"):
-                    value = resp.get(key)
-                    if isinstance(value, str) and value.strip():
-                        return value.strip()
-                return json.dumps(resp, ensure_ascii=False)
+        if isinstance(resp, str):
+            return resp.strip()
+        if isinstance(resp, bytes):
+            return resp.decode("utf-8", errors="ignore").strip()
+        if isinstance(resp, dict):
+            for key in ("text", "transcript", "transcription", "result"):
+                value = resp.get(key)
+                if isinstance(value, str) and value.strip():
+                    return value.strip()
+            return json.dumps(resp, ensure_ascii=False)
 
-            return str(resp).strip()
-
-        except Exception as e:
-            raise
+        return str(resp).strip()

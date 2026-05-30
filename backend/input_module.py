@@ -1,6 +1,6 @@
-# input_module.py
-from typing import Optional, Dict, List, Any
+﻿from typing import Optional, Dict, Any
 import datetime
+
 
 class InputModule:
     """
@@ -9,7 +9,6 @@ class InputModule:
     """
 
     def __init__(self):
-        # Historial de inputs, se puede usar para LangChain memory
         self.history = []
 
     def _build_entry(
@@ -37,9 +36,6 @@ class InputModule:
         user_id: str = "user1",
         session_id: str = "default",
     ) -> Optional[Dict]:
-        """
-        Recibe texto, limpia espacios, y lo agrega al historial.
-        """
         text = text.strip()
         if not text:
             return None
@@ -58,10 +54,6 @@ class InputModule:
         user_id: str = "user1",
         session_id: str = "default",
     ) -> Optional[Dict]:
-        """
-        Recibe audio en bytes y lo agrega al historial.
-        La conversión a texto (STT) se hará en otro módulo/backend.
-        """
         if not audio_bytes:
             return None
 
@@ -71,25 +63,3 @@ class InputModule:
 
         self.history.append(entry)
         return entry
-
-    def get_latest_input(self, user_id: Optional[str] = None, session_id: Optional[str] = None) -> Optional[Dict]:
-        """
-        Devuelve el último input del usuario.
-        """
-        entries: List[Dict] = self.history
-        if user_id is not None:
-            entries = [item for item in entries if item.get("user") == user_id]
-        if session_id is not None:
-            entries = [item for item in entries if item.get("session_id") == session_id]
-        return entries[-1] if entries else None
-
-    def get_history(self, user_id: Optional[str] = None, session_id: Optional[str] = None):
-        """
-        Devuelve el historial completo de inputs.
-        """
-        entries = self.history
-        if user_id is not None:
-            entries = [item for item in entries if item.get("user") == user_id]
-        if session_id is not None:
-            entries = [item for item in entries if item.get("session_id") == session_id]
-        return entries
