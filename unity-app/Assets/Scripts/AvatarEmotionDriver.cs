@@ -92,6 +92,20 @@ namespace ProyectoAgentesVirtuales.UnityBridge
                 animationState = "Victory",
                 durationSeconds = 2.2f,
                 blendShapes = Array.Empty<BlendShapeEmotionTarget>()
+            },
+            new EmotionAnimationProfile
+            {
+                emotion = "point_lu",
+                animationState = "PointLU",
+                durationSeconds = 1.6f,
+                blendShapes = Array.Empty<BlendShapeEmotionTarget>()
+            },
+            new EmotionAnimationProfile
+            {
+                emotion = "point_ru",
+                animationState = "PointRU",
+                durationSeconds = 1.6f,
+                blendShapes = Array.Empty<BlendShapeEmotionTarget>()
             }
         };
 

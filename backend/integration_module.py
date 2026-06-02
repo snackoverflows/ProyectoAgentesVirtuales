@@ -88,6 +88,7 @@ class AgentResponse(BaseModel):
     state_json: Optional[str] = None
     schedule_report: Optional[Dict[str, Any]] = None
     schedule_json: Optional[str] = None
+    output_json: Optional[str] = None
 
 
 def _log_debug(label: str, payload: Any) -> None:
@@ -228,7 +229,8 @@ async def transcribe_and_process(
             "warnings": ["STT no devolvio texto."],
         }
 
-    normalized_workflow = workflow if workflow in {"chat", "schedule"} else "chat"
+    normalized_workflow = (workflow or "").strip().lower()
+    normalized_workflow = normalized_workflow if normalized_workflow in {"chat", "schedule"} else "chat"
     req = AgentRequest(content=transcript, user_id=user_id, session_id=session_id, tts_mode=tts_mode, workflow=normalized_workflow)
     llm_response, warnings, state, schedule_report, emotion_profile = _build_agent_response(req)
     return audio_service.build_output_with_tts(

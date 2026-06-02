@@ -1,17 +1,11 @@
 using System;
-using TMPro;
-using System.Linq;
 using UnityEngine;
 
 namespace ProyectoAgentesVirtuales.UnityBridge
 {
     public class AgentBackendReceiver : MonoBehaviour
     {
-        [Header("UI Output")]
-        [SerializeField] private TMP_Text statusText;
-        [SerializeField] private TMP_Text chatText;
-        [SerializeField] private TMP_Text stateText;
-        [SerializeField] private TMP_Text warningsText;
+        [Header("Schedule UI")]
         [SerializeField] private ScheduleGridCanvas scheduleGridCanvas;
         [SerializeField] private bool debugLogPayloads = false;
 
@@ -30,24 +24,7 @@ namespace ProyectoAgentesVirtuales.UnityBridge
             }
 
             Debug.Log($"[AgentBackendReceiver] HandleResponse received. text={response.text}");
-
-            if (chatText != null)
-            {
-                chatText.text = response.text ?? string.Empty;
-            }
-
-            // Mensaje público indicando que se recibió la respuesta hablada
-            if (statusText != null)
-            {
-                statusText.text = $"Respuesta recibida: {response.text ?? string.Empty}";
-            }
-
-            if (stateText != null)
-            {
-                stateText.text = string.IsNullOrWhiteSpace(response.output_json)
-                    ? "(sin output.json)"
-                    : response.output_json;
-            }
+            LogBackendPayload(response);
 
             if (debugLogPayloads)
             {
@@ -62,38 +39,29 @@ namespace ProyectoAgentesVirtuales.UnityBridge
                 }
             }
 
-            // Si el backend devolvió un state_json, actualizar paneles de estado
             try
             {
-                if (!string.IsNullOrWhiteSpace(response.state_json))
+                if (scheduleGridCanvas != null)
                 {
-                    AgentStatePayload parsed = JsonUtility.FromJson<AgentStatePayload>(response.state_json);
-                    // Actualizar el canvas de horarios con el estado (muestra cursos y restricciones)
-                    if (scheduleGridCanvas != null)
-                    {
-                        scheduleGridCanvas.RenderFromStateJson(response.state_json);
-                    }
+                    EnsureScheduleGridCanvasIsActive();
 
-                    if (parsed != null && parsed.draft != null && parsed.draft.courses != null && parsed.draft.courses.Length > 0)
+                    if (response.state != null)
                     {
-                        var names = parsed.draft.courses.Select(c => c.course ?? string.Empty).Where(s => !string.IsNullOrWhiteSpace(s)).ToArray();
-                        string joined = string.Join(", ", names);
-                        Debug.Log($"[AgentBackendReceiver] Cursos añadidos detectados: {joined}");
-                        if (scheduleGridCanvas == null && warningsText != null)
+                        scheduleGridCanvas.RenderFromStatePayload(response.state);
+                    }
+                    else
+                    {
+                        string stateJson = GetStateJson(response);
+                        if (!string.IsNullOrWhiteSpace(stateJson))
                         {
-                            warningsText.text = $"Cursos añadidos: {joined}";
+                            scheduleGridCanvas.RenderFromStateJson(stateJson);
                         }
                     }
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Ignorar errores de parsing
-            }
-
-            if (warningsText != null)
-            {
-                warningsText.text = string.Empty;
+                Debug.LogWarning($"[AgentBackendReceiver] Error renderizando state: {ex}");
             }
 
             if (audioPlayer != null && !string.IsNullOrWhiteSpace(response.audio_base64))
@@ -101,30 +69,31 @@ namespace ProyectoAgentesVirtuales.UnityBridge
                 audioPlayer.PlayFromBase64(response.audio_base64);
             }
 
-            // Si el backend devolvió schedule_json, pasarla al canvas para renderizar el top3
             try
             {
-                if (!string.IsNullOrWhiteSpace(response.schedule_json))
+                if (scheduleGridCanvas != null)
                 {
-                    if (scheduleGridCanvas != null)
+                    EnsureScheduleGridCanvasIsActive();
+
+                    if (response.schedule_report != null)
                     {
-                        Debug.Log("[AgentBackendReceiver] Schedule JSON recibido. Renderizando en canvas.");
-                        scheduleGridCanvas.RenderFromScheduleJson(response.schedule_json);
+                        Debug.Log("[AgentBackendReceiver] Schedule payload recibido. Renderizando en canvas.");
+                        scheduleGridCanvas.RenderFromSchedulePayload(response.schedule_report);
                     }
                     else
                     {
-                        // Fallback: mostrar en warningsText
-                        Debug.Log("[AgentBackendReceiver] Schedule JSON recibido pero no hay canvas asignado.");
-                        if (warningsText != null)
+                        string scheduleJson = GetScheduleJson(response);
+                        if (!string.IsNullOrWhiteSpace(scheduleJson))
                         {
-                            warningsText.text = "Horario generado (ver top 3 en canvas).";
+                            Debug.Log("[AgentBackendReceiver] Schedule JSON recibido. Renderizando en canvas.");
+                            scheduleGridCanvas.RenderFromScheduleJson(scheduleJson);
                         }
                     }
                 }
             }
-            catch (Exception)
+            catch (Exception ex)
             {
-                // Ignorar errores de parsing
+                Debug.LogWarning($"[AgentBackendReceiver] Error renderizando schedule: {ex}");
             }
 
             if (avatarEmotionDriver == null)
@@ -144,19 +113,180 @@ namespace ProyectoAgentesVirtuales.UnityBridge
             }
         }
 
+        private void LogBackendPayload(BackendAgentResponse response)
+        {
+            if (response == null)
+            {
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(response.raw_json))
+            {
+                Debug.Log($"[AgentBackendReceiver] Backend raw payload:\n{SanitizePayloadForLog(response.raw_json)}");
+                return;
+            }
+
+            if (!string.IsNullOrWhiteSpace(response.output_json))
+            {
+                Debug.Log($"[AgentBackendReceiver] Backend payload:\n{response.output_json}");
+                return;
+            }
+
+            string stateJson = GetStateJson(response);
+            string scheduleJson = GetScheduleJson(response);
+            Debug.Log(
+                "[AgentBackendReceiver] Backend payload (fallback):\n"
+                + "{\n"
+                + $"  \"text\": \"{EscapeForLog(response.text)}\",\n"
+                + $"  \"emotion_profile\": \"{EscapeForLog(response.emotion_profile)}\",\n"
+                + $"  \"state_json\": \"{EscapeForLog(stateJson)}\",\n"
+                + $"  \"schedule_json\": \"{EscapeForLog(scheduleJson)}\"\n"
+                + "}"
+            );
+        }
+
+        private string SanitizePayloadForLog(string rawJson)
+        {
+            if (string.IsNullOrWhiteSpace(rawJson))
+            {
+                return string.Empty;
+            }
+
+            const string fieldName = "\"audio_base64\"";
+            int keyIndex = rawJson.IndexOf(fieldName, StringComparison.Ordinal);
+            if (keyIndex < 0)
+            {
+                return rawJson;
+            }
+
+            int colonIndex = rawJson.IndexOf(':', keyIndex + fieldName.Length);
+            if (colonIndex < 0)
+            {
+                return rawJson;
+            }
+
+            int valueStart = FindNextNonWhitespace(rawJson, colonIndex + 1);
+            if (valueStart < 0 || rawJson[valueStart] != '"')
+            {
+                return rawJson;
+            }
+
+            int valueEnd = FindStringEnd(rawJson, valueStart);
+            if (valueEnd < 0)
+            {
+                return rawJson;
+            }
+
+            return rawJson.Substring(0, valueStart + 1)
+                + "<omitted>"
+                + rawJson.Substring(valueEnd);
+        }
+
+        private string EscapeForLog(string value)
+        {
+            if (string.IsNullOrEmpty(value))
+            {
+                return string.Empty;
+            }
+
+            return value
+                .Replace("\\", "\\\\")
+                .Replace("\"", "\\\"")
+                .Replace("\r", "\\r")
+                .Replace("\n", "\\n");
+        }
+
+        private int FindNextNonWhitespace(string text, int startIndex)
+        {
+            for (int index = startIndex; index < text.Length; index++)
+            {
+                if (!char.IsWhiteSpace(text[index]))
+                {
+                    return index;
+                }
+            }
+
+            return -1;
+        }
+
+        private int FindStringEnd(string text, int openingQuoteIndex)
+        {
+            bool escaping = false;
+            for (int index = openingQuoteIndex + 1; index < text.Length; index++)
+            {
+                char current = text[index];
+                if (escaping)
+                {
+                    escaping = false;
+                    continue;
+                }
+
+                if (current == '\\')
+                {
+                    escaping = true;
+                    continue;
+                }
+
+                if (current == '"')
+                {
+                    return index;
+                }
+            }
+
+            return -1;
+        }
+
+        private void EnsureScheduleGridCanvasIsActive()
+        {
+            if (scheduleGridCanvas != null && !scheduleGridCanvas.gameObject.activeSelf)
+            {
+                scheduleGridCanvas.gameObject.SetActive(true);
+            }
+        }
+
+        private static string GetStateJson(BackendAgentResponse response)
+        {
+            if (response == null)
+            {
+                return string.Empty;
+            }
+
+            if (!string.IsNullOrWhiteSpace(response.state_json))
+            {
+                return response.state_json;
+            }
+
+            if (response.state != null && response.state.draft != null)
+            {
+                return JsonUtility.ToJson(response.state);
+            }
+
+            return string.Empty;
+        }
+
+        private static string GetScheduleJson(BackendAgentResponse response)
+        {
+            if (response == null)
+            {
+                return string.Empty;
+            }
+
+            if (!string.IsNullOrWhiteSpace(response.schedule_json))
+            {
+                return response.schedule_json;
+            }
+
+            if (response.schedule_report != null && response.schedule_report.schedules != null && response.schedule_report.schedules.Length > 0)
+            {
+                return JsonUtility.ToJson(response.schedule_report);
+            }
+
+            return string.Empty;
+        }
+
         public void HandleError(string message)
         {
             Debug.LogError($"[AgentBackendReceiver] {message}");
-
-            if (statusText != null)
-            {
-                statusText.text = message;
-            }
-
-            if (warningsText != null)
-            {
-                warningsText.text = message;
-            }
 
             if (avatarEmotionDriver == null)
             {
@@ -169,17 +299,8 @@ namespace ProyectoAgentesVirtuales.UnityBridge
             }
         }
 
-        // Notificaciones de flujo de grabación
         public void NotifyRecordingStarted()
         {
-            if (statusText != null)
-            {
-                statusText.text = "Grabación iniciada.";
-            }
-            else if (warningsText != null)
-            {
-                warningsText.text = "Grabación iniciada.";
-            }
         }
 
         public void NotifyRecordingStoppedAndSent()
@@ -193,15 +314,6 @@ namespace ProyectoAgentesVirtuales.UnityBridge
             {
                 avatarEmotionDriver.PlayThinkingLoop();
             }
-
-            if (statusText != null)
-            {
-                statusText.text = "Grabación detenida y audio enviado.";
-            }
-            else if (warningsText != null)
-            {
-                warningsText.text = "Grabación detenida y audio enviado.";
-            }
         }
     }
 
@@ -214,8 +326,146 @@ namespace ProyectoAgentesVirtuales.UnityBridge
         public string animation;
         public string emotion;
         public string[] warnings;
+        public BackendStatePayload state;
+        public BackendScheduleReportPayload schedule_report;
         public string state_json;
         public string schedule_json;
         public string output_json;
+        public string raw_json;
+    }
+
+    [Serializable]
+    public class BackendStatePayload
+    {
+        public string assistant_message;
+        public BackendDraftPayload draft;
+        public string status;
+        public string[] missing_items;
+        public bool should_generate;
+        public string emotion_profile;
+    }
+
+    [Serializable]
+    public class BackendDraftPayload
+    {
+        public BackendCoursePayload[] courses;
+        public BackendConstraintsPayload constraints;
+    }
+
+    [Serializable]
+    public class BackendCoursePayload
+    {
+        public string course;
+        public string group;
+        public string professor;
+        public BackendMeetingPayload[] meetings;
+    }
+
+    [Serializable]
+    public class BackendMeetingPayload
+    {
+        public string day;
+        public string start;
+        public string end;
+    }
+
+    [Serializable]
+    public class BackendConstraintsPayload
+    {
+        public BackendRulePayload[] hard;
+        public BackendRulePayload[] soft;
+        public BackendOptimizationPayload optimization;
+        public BackendScoringPayload scoring;
+    }
+
+    [Serializable]
+    public class BackendRulePayload
+    {
+        public string type;
+        public string scope;
+        public string @operator;
+        public string reason;
+        public string target;
+        public string[] days;
+        public string[] values;
+    }
+
+    [Serializable]
+    public class BackendOptimizationPayload
+    {
+        public BackendObjectivePayload[] objectives;
+    }
+
+    [Serializable]
+    public class BackendObjectivePayload
+    {
+        public string @operator;
+        public string target;
+        public int priority;
+        public int weight;
+        public string reason;
+        public string aggregation;
+    }
+
+    [Serializable]
+    public class BackendScoringPayload
+    {
+        public string mode;
+        public int per;
+    }
+
+    [Serializable]
+    public class BackendScheduleReportPayload
+    {
+        public string text;
+        public BackendSchedulePayload[] schedules;
+        public string[] warnings;
+        public BackendExecutionParamsPayload execution_params;
+    }
+
+    [Serializable]
+    public class BackendSchedulePayload
+    {
+        public BackendScheduleMetaPayload meta;
+        public BackendBlockPayload[] blocks;
+    }
+
+    [Serializable]
+    public class BackendScheduleMetaPayload
+    {
+        public int raw_score;
+        public int user_score;
+        public BackendUserScoreBreakdownPayload user_score_breakdown;
+        public int distinct_courses;
+        public int distinct_days;
+    }
+
+    [Serializable]
+    public class BackendUserScoreBreakdownPayload
+    {
+        public float coverage_ratio;
+        public float day_efficiency;
+        public float soft_ratio;
+    }
+
+    [Serializable]
+    public class BackendBlockPayload
+    {
+        public string day;
+        public string start;
+        public string end;
+        public string course;
+        public string group;
+        public string professor;
+        public string[] tags;
+    }
+
+    [Serializable]
+    public class BackendExecutionParamsPayload
+    {
+        public int max_per_day;
+        public string max_per_day_source;
+        public int top_n;
+        public string top_n_source;
     }
 }

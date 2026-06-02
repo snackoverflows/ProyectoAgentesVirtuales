@@ -242,22 +242,28 @@ class ScheduleService:
         current_draft = self.get_latest_schedule_draft(user_id, session_id)
         conversation_history = self.memory_module.get_last_messages(n=12, user_id=user_id, session_id=session_id)
 
+        llm_fallback_payload = json.dumps(
+            {
+                "assistant_message": "No pude interpretar el borrador de horarios en este momento.",
+                "draft": current_draft,
+                "status": "collecting",
+                "missing_items": [],
+                "should_generate": False,
+            },
+            ensure_ascii=False,
+        )
+
         raw_llm_text = self.error_handler.run_with_retry(
             self.llm_module.generate_schedule_chat_turn,
             user_text,
             current_draft=current_draft,
             history=conversation_history,
-            fallback=json.dumps(
-                {
-                    "assistant_message": "No pude interpretar el borrador de horarios en este momento.",
-                    "draft": current_draft,
-                    "status": "collecting",
-                    "missing_items": [],
-                    "should_generate": False,
-                },
-                ensure_ascii=False,
-            ),
+            fallback=llm_fallback_payload,
         )
+        if raw_llm_text == llm_fallback_payload and self.error_handler.last_error_message:
+            warnings.append(
+                f"LLM schedule fallback activado: {self.error_handler.last_error_type}: {self.error_handler.last_error_message}"
+            )
         log_debug("llm.schedule.raw", raw_llm_text)
 
         try:

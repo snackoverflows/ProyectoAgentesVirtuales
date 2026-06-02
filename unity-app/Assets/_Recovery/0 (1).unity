@@ -1215,7 +1215,7 @@ MonoBehaviour:
   userId: unity_user
   sessionId: default
   ttsMode: auto
-  workflow: schedule
+  workflow: chat
   recordButton: {fileID: 1059515278}
   statusText: {fileID: 0}
   microphoneDropdown: {fileID: 1925478250}
@@ -2416,14 +2416,6 @@ MonoBehaviour:
     - blendShapeName: smiley
       weight: 100
       isMouthBlendShape: 0
-  - emotion: point_ru
-    animationState: PointRU
-    durationSeconds: 2.2
-    blendShapes: []
-  - emotion: point_lu
-    animationState: PointLU
-    durationSeconds: 2.2
-    blendShapes: []
 --- !u!4 &850836979
 Transform:
   m_ObjectHideFlags: 0
@@ -5701,6 +5693,10 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 1c9cd094167b92e478ebf56406119bc8, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::ProyectoAgentesVirtuales.UnityBridge.AgentBackendReceiver
+  statusText: {fileID: 0}
+  chatText: {fileID: 0}
+  stateText: {fileID: 0}
+  warningsText: {fileID: 0}
   scheduleGridCanvas: {fileID: 2109066369}
   debugLogPayloads: 1
   audioPlayer: {fileID: 196106761}

@@ -63,6 +63,8 @@ mono_crash.*
 [Aa]ssets/Addressables_Temp*/
 [Aa]ssets/SceneDependencyCache*
 [Aa]ssets/Unity.VisualScripting.Generated/
+unity-app/Assets/Scripts/SamplesWAV/*
+!unity-app/Assets/Scripts/SamplesWAV/.gitkeep
 
 # Unity package samples should stay tracked unless they are throwaway local files
 # Do not ignore generic *.meta files; Unity needs them for most assets.

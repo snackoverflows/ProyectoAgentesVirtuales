@@ -31,9 +31,15 @@ class LLMModule:
         self.client = genai.Client(api_key=self.api_key, vertexai=False)
 
     def _load_emotion_profiles_from_env(self) -> List[str]:
-        raw_profiles = os.getenv("LLM_EMOTION_PROFILES", "neutral,friendly,thinking,sad,surprise,happy")
-        profiles = [profile.strip() for profile in raw_profiles.split(",") if profile.strip()]
-        return profiles or ["neutral"]
+        raw_profiles = os.getenv("LLM_EMOTION_PROFILES", "neutral,friendly,thinking,sad,surprise,happy,point_lu,point_ru")
+        configured = [profile.strip().lower() for profile in raw_profiles.split(",") if profile.strip()]
+        required = ["neutral", "friendly", "thinking", "sad", "surprise", "happy", "point_lu", "point_ru"]
+
+        profiles: List[str] = []
+        for profile in configured + required:
+            if profile and profile not in profiles:
+                profiles.append(profile)
+        return profiles
 
     def build_agent_response_prompt(self, available_profiles: Optional[List[str]] = None) -> str:
         profiles = available_profiles or self.available_emotion_profiles
@@ -50,6 +56,8 @@ class LLMModule:
             "No pidas doble confirmacion para crear el horario: detecta el intento del usuario y genera el horario cuando lo pida explicitamente, o bien ofrecelo luego de haber agregado cursos si todavia falta confirmacion. "
             "Antes de generar el horario, no repitas todos los cursos agregados; en su lugar, indicale que puede ver los cursos considerados y las restricciones usando los botones de la esquina superior izquierda de la pantalla. "
             "Cuando el horario quede listo, NO enumeres cursos, grupos, profesores ni restricciones: solo dile que ya esta listo y que puede ver el horario en la esquina superior derecha de la pantalla. "
+            "Usa emotion_profile='point_lu' cuando indiques que mire botones o paneles en la esquina superior izquierda (cursos/restricciones). "
+            "Usa emotion_profile='point_ru' cuando indiques que mire el horario en la esquina superior derecha. "
             "Los cursos que aparecen como referencia o ejemplo son solo para interpretacion interna del LLM; no los repitas ni los presentes como parte de la respuesta final. "
             "Nunca inventes perfiles fuera de la lista. "
             "Siempre debes especificar un emotion_profile.\n\n"
@@ -189,6 +197,10 @@ class LLMModule:
             "- Si should_generate=false, assistant_message NO puede decir que el horario ya fue generado.\n"
             "- Si should_generate=true, status debe ser awaiting_confirmation o equivalente a ejecucion inmediata.\n"
             "- Si aun faltan datos, usar status=collecting.\n\n"
+            "ANIMACION/EMOCION:\n"
+            "- Cuando menciones botones o paneles de cursos/restricciones en esquina superior izquierda, usa emotion_profile='point_lu'.\n"
+            "- Cuando menciones que el horario generado esta en esquina superior derecha, usa emotion_profile='point_ru'.\n"
+            "- En otros casos usa perfiles neutrales/conversacionales.\n\n"
             "EMOCION:\n"
             "- emotion_profile obligatorio y debe ser uno de: " + ", ".join(self.available_emotion_profiles) + ".\n\n"
             f"Historial reciente:\n{history_json}\n\n"

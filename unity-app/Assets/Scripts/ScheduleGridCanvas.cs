@@ -288,6 +288,48 @@ namespace ProyectoAgentesVirtuales.UnityBridge
             UpdatePaginationUI();
         }
 
+        public void RenderFromSchedulePayload(BackendScheduleReportPayload reportPayload)
+        {
+            EnsureCanvas();
+            BuildControls();
+            BuildConstraintsPanel();
+            BuildEmptyGrid();
+
+            if (reportPayload == null || reportPayload.schedules == null || reportPayload.schedules.Length == 0)
+            {
+                currentReport = null;
+                currentScheduleIndex = 0;
+                ClearSlots();
+                UpdatePaginationUI();
+                SetSubtitle("No se encontró el top 1 del horario.");
+                return;
+            }
+
+            currentReport = new ScheduleReportPayload
+            {
+                text = reportPayload.text,
+                warnings = reportPayload.warnings,
+                schedules = reportPayload.schedules
+                    .Where(item => item != null)
+                    .Select(ConvertScheduleEntry)
+                    .ToArray(),
+            };
+
+            if (currentReport.schedules == null || currentReport.schedules.Length == 0)
+            {
+                currentReport = null;
+                currentScheduleIndex = 0;
+                ClearSlots();
+                UpdatePaginationUI();
+                SetSubtitle("No se encontró el top 1 del horario.");
+                return;
+            }
+
+            currentScheduleIndex = Mathf.Clamp(currentScheduleIndex, 0, GetVisibleScheduleCount() - 1);
+            RefreshSelectedSchedule();
+            UpdatePaginationUI();
+        }
+
         public void ToggleGridVisibility()
         {
             SetGridVisible(!gridVisible);
@@ -352,6 +394,155 @@ namespace ProyectoAgentesVirtuales.UnityBridge
             string coursesSummary = BuildCoursesSummary(parsedState);
             bool hasCourses = parsedState != null && parsedState.draft != null && parsedState.draft.courses != null && parsedState.draft.courses.Length > 0;
             UpdateCoursesText(coursesSummary, hasCourses);
+        }
+
+        public void RenderFromStatePayload(BackendStatePayload statePayload)
+        {
+            EnsureCanvas();
+            BuildControls();
+            BuildConstraintsPanel();
+            BuildCoursesPanel();
+
+            if (statePayload == null)
+            {
+                currentState = null;
+                UpdateConstraintsText("Sin restricciones cargadas.", false);
+                UpdateCoursesText("Sin cursos cargados.", false);
+                return;
+            }
+
+            AgentStatePayload parsedState = ConvertStatePayload(statePayload);
+            currentState = parsedState;
+
+            string naturalLanguage = BuildConstraintsSummary(parsedState);
+            bool hasStructuredData = parsedState != null && parsedState.draft != null && parsedState.draft.constraints != null;
+            UpdateConstraintsText(naturalLanguage, hasStructuredData);
+
+            string coursesSummary = BuildCoursesSummary(parsedState);
+            bool hasCourses = parsedState != null && parsedState.draft != null && parsedState.draft.courses != null && parsedState.draft.courses.Length > 0;
+            UpdateCoursesText(coursesSummary, hasCourses);
+        }
+
+        private AgentStatePayload ConvertStatePayload(BackendStatePayload statePayload)
+        {
+            return new AgentStatePayload
+            {
+                draft = new AgentDraftPayload
+                {
+                    courses = statePayload.draft?.courses == null
+                        ? Array.Empty<AgentCoursePayload>()
+                        : statePayload.draft.courses
+                            .Where(item => item != null)
+                            .Select(course => new AgentCoursePayload
+                            {
+                                course = course.course,
+                                group = course.group,
+                                professor = course.professor,
+                                meetings = course.meetings == null
+                                    ? Array.Empty<AgentCourseMeetingPayload>()
+                                    : course.meetings
+                                        .Where(meeting => meeting != null)
+                                        .Select(meeting => new AgentCourseMeetingPayload
+                                        {
+                                            day = meeting.day,
+                                            start = meeting.start,
+                                            end = meeting.end,
+                                        })
+                                        .ToArray(),
+                            })
+                            .ToArray(),
+                    constraints = ConvertConstraintsPayload(statePayload.draft?.constraints),
+                },
+            };
+        }
+
+        private AgentConstraintsPayload ConvertConstraintsPayload(BackendConstraintsPayload constraints)
+        {
+            if (constraints == null)
+            {
+                return null;
+            }
+
+            return new AgentConstraintsPayload
+            {
+                hard = ConvertRules(constraints.hard),
+                soft = ConvertRules(constraints.soft),
+                optimization = new AgentOptimizationPayload
+                {
+                    objectives = constraints.optimization?.objectives == null
+                        ? Array.Empty<AgentObjectivePayload>()
+                        : constraints.optimization.objectives
+                            .Where(item => item != null)
+                            .Select(item => new AgentObjectivePayload
+                            {
+                                @operator = item.@operator,
+                                target = item.target,
+                                weight = item.weight,
+                                priority = item.priority,
+                                aggregation = item.aggregation,
+                            })
+                            .ToArray(),
+                },
+                scoring = constraints.scoring == null
+                    ? null
+                    : new AgentScoringPayload
+                    {
+                        mode = constraints.scoring.mode,
+                        per = constraints.scoring.per,
+                    },
+            };
+        }
+
+        private AgentConstraintRule[] ConvertRules(BackendRulePayload[] rules)
+        {
+            if (rules == null)
+            {
+                return Array.Empty<AgentConstraintRule>();
+            }
+
+            return rules
+                .Where(item => item != null)
+                .Select(item => new AgentConstraintRule
+                {
+                    type = item.type,
+                    scope = item.scope,
+                    @operator = item.@operator,
+                    reason = item.reason,
+                    target = item.target,
+                    days = item.days,
+                    values = item.values,
+                })
+                .ToArray();
+        }
+
+        private ScheduleEntry ConvertScheduleEntry(BackendSchedulePayload payload)
+        {
+            return new ScheduleEntry
+            {
+                meta = payload.meta == null
+                    ? null
+                    : new ScheduleMeta
+                    {
+                        raw_score = payload.meta.raw_score,
+                        distinct_courses = payload.meta.distinct_courses,
+                        distinct_days = payload.meta.distinct_days,
+                    },
+                blocks = payload.blocks == null
+                    ? Array.Empty<ScheduleBlock>()
+                    : payload.blocks
+                        .Where(item => item != null)
+                        .Select(item => new ScheduleBlock
+                        {
+                            day = item.day,
+                            start = item.start,
+                            end = item.end,
+                            course = item.course,
+                            group = item.group,
+                            professor = item.professor,
+                            tags = item.tags,
+                        })
+                        .ToArray(),
+            };
         }
 
         private void EnsureCanvas()
@@ -627,11 +818,11 @@ namespace ProyectoAgentesVirtuales.UnityBridge
             panelObject.transform.SetParent(targetCanvas.transform, false);
 
             constraintsPanel = panelObject.GetComponent<RectTransform>();
-            constraintsPanel.anchorMin = new Vector2(0.5f, 0.5f);
-            constraintsPanel.anchorMax = new Vector2(0.5f, 0.5f);
-            constraintsPanel.pivot = new Vector2(0.5f, 0.5f);
-            constraintsPanel.anchoredPosition = Vector2.zero;
-            constraintsPanel.sizeDelta = canvasSize;
+            constraintsPanel.anchorMin = new Vector2(0f, 1f);
+            constraintsPanel.anchorMax = new Vector2(0f, 1f);
+            constraintsPanel.pivot = new Vector2(0f, 1f);
+            constraintsPanel.anchoredPosition = new Vector2(constraintsPanelOffset.x, -constraintsPanelOffset.y);
+            constraintsPanel.sizeDelta = new Vector2(constraintsPanelWidth, constraintsPanelHeight);
 
             Image panelImage = panelObject.GetComponent<Image>();
             panelImage.color = new Color(0.09f, 0.10f, 0.13f, 0.96f);
@@ -676,11 +867,11 @@ namespace ProyectoAgentesVirtuales.UnityBridge
             panelObject.transform.SetParent(targetCanvas.transform, false);
 
             coursesPanel = panelObject.GetComponent<RectTransform>();
-            coursesPanel.anchorMin = new Vector2(0.5f, 0.5f);
-            coursesPanel.anchorMax = new Vector2(0.5f, 0.5f);
-            coursesPanel.pivot = new Vector2(0.5f, 0.5f);
-            coursesPanel.anchoredPosition = Vector2.zero;
-            coursesPanel.sizeDelta = canvasSize;
+            coursesPanel.anchorMin = new Vector2(0f, 1f);
+            coursesPanel.anchorMax = new Vector2(0f, 1f);
+            coursesPanel.pivot = new Vector2(0f, 1f);
+            coursesPanel.anchoredPosition = new Vector2(coursesPanelOffset.x, -coursesPanelOffset.y);
+            coursesPanel.sizeDelta = new Vector2(coursesPanelWidth, coursesPanelHeight);
 
             Image panelImage = panelObject.GetComponent<Image>();
             panelImage.color = new Color(0.09f, 0.10f, 0.13f, 0.96f);

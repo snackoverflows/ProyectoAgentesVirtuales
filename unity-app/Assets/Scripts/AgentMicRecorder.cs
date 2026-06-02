@@ -4,6 +4,7 @@ using UnityEngine.UI;
 using UnityEngine.Networking;
 using System;
 using System.IO;
+using System.Text;
 using ProyectoAgentesVirtuales.UnityBridge;
 
 [RequireComponent(typeof(Button))]
@@ -14,7 +15,7 @@ public class AgentMicRecorder : MonoBehaviour
     public string userId = "unity_user";
     public string sessionId = "default";
     public string ttsMode = "auto";
-    public string workflow = "chat";
+    public string workflow = "schedule";
 
     [Header("UI")]
     public Button recordButton;
@@ -351,7 +352,9 @@ public class AgentMicRecorder : MonoBehaviour
         form.AddField("user_id", userId);
         form.AddField("session_id", sessionId);
         form.AddField("tts_mode", ttsMode);
-        form.AddField("workflow", workflow);
+        string normalizedWorkflow = NormalizeWorkflow(workflow);
+        Debug.Log($"[AgentMicRecorder] Sending workflow={normalizedWorkflow}");
+        form.AddField("workflow", normalizedWorkflow);
 
         using (var www = UnityWebRequest.Post(transcribeUrl, form))
         {
@@ -380,8 +383,228 @@ public class AgentMicRecorder : MonoBehaviour
                 yield break;
             }
 
+            response.raw_json = responseText;
+            HydrateResponseJsonFields(response, responseText);
+
+            Debug.Log($"[AgentMicRecorder] Backend payload recibido:\n{responseText}");
+
             receiver?.HandleResponse(response);
         }
+    }
+
+    private void HydrateResponseJsonFields(BackendAgentResponse response, string rawJson)
+    {
+        if (response == null || string.IsNullOrWhiteSpace(rawJson))
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(response.state_json))
+        {
+            response.state_json = ExtractTopLevelString(rawJson, "state_json");
+            if (string.IsNullOrWhiteSpace(response.state_json))
+            {
+                response.state_json = ExtractTopLevelObject(rawJson, "state");
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(response.schedule_json))
+        {
+            response.schedule_json = ExtractTopLevelString(rawJson, "schedule_json");
+            if (string.IsNullOrWhiteSpace(response.schedule_json))
+            {
+                response.schedule_json = ExtractTopLevelObject(rawJson, "schedule_report");
+            }
+        }
+
+        if (string.IsNullOrWhiteSpace(response.output_json))
+        {
+            response.output_json = ExtractTopLevelString(rawJson, "output_json");
+        }
+    }
+
+    private string ExtractTopLevelString(string json, string fieldName)
+    {
+        string pattern = $"\"{fieldName}\"";
+        int keyIndex = json.IndexOf(pattern, StringComparison.Ordinal);
+        if (keyIndex < 0)
+        {
+            return string.Empty;
+        }
+
+        int colonIndex = json.IndexOf(':', keyIndex + pattern.Length);
+        if (colonIndex < 0)
+        {
+            return string.Empty;
+        }
+
+        int firstQuote = FindNextNonWhitespace(json, colonIndex + 1);
+        if (firstQuote < 0 || json[firstQuote] != '"')
+        {
+            return string.Empty;
+        }
+
+        StringBuilder builder = new StringBuilder();
+        bool escaping = false;
+
+        for (int index = firstQuote + 1; index < json.Length; index++)
+        {
+            char current = json[index];
+            if (escaping)
+            {
+                switch (current)
+                {
+                    case '"':
+                    case '\\':
+                    case '/':
+                        builder.Append(current);
+                        break;
+                    case 'b':
+                        builder.Append('\b');
+                        break;
+                    case 'f':
+                        builder.Append('\f');
+                        break;
+                    case 'n':
+                        builder.Append('\n');
+                        break;
+                    case 'r':
+                        builder.Append('\r');
+                        break;
+                    case 't':
+                        builder.Append('\t');
+                        break;
+                    case 'u':
+                        if (index + 4 < json.Length)
+                        {
+                            string hex = json.Substring(index + 1, 4);
+                            if (ushort.TryParse(hex, System.Globalization.NumberStyles.HexNumber, null, out ushort code))
+                            {
+                                builder.Append((char)code);
+                                index += 4;
+                            }
+                        }
+                        break;
+                    default:
+                        builder.Append(current);
+                        break;
+                }
+
+                escaping = false;
+                continue;
+            }
+
+            if (current == '\\')
+            {
+                escaping = true;
+                continue;
+            }
+
+            if (current == '"')
+            {
+                return builder.ToString();
+            }
+
+            builder.Append(current);
+        }
+
+        return string.Empty;
+    }
+
+    private string ExtractTopLevelObject(string json, string fieldName)
+    {
+        string pattern = $"\"{fieldName}\"";
+        int keyIndex = json.IndexOf(pattern, StringComparison.Ordinal);
+        if (keyIndex < 0)
+        {
+            return string.Empty;
+        }
+
+        int colonIndex = json.IndexOf(':', keyIndex + pattern.Length);
+        if (colonIndex < 0)
+        {
+            return string.Empty;
+        }
+
+        int objectStart = FindNextNonWhitespace(json, colonIndex + 1);
+        if (objectStart < 0)
+        {
+            return string.Empty;
+        }
+
+        char opening = json[objectStart];
+        char closing = opening == '{' ? '}' : opening == '[' ? ']' : '\0';
+        if (closing == '\0')
+        {
+            return string.Empty;
+        }
+
+        int depth = 0;
+        bool inString = false;
+        bool escaping = false;
+
+        for (int index = objectStart; index < json.Length; index++)
+        {
+            char current = json[index];
+
+            if (inString)
+            {
+                if (escaping)
+                {
+                    escaping = false;
+                }
+                else if (current == '\\')
+                {
+                    escaping = true;
+                }
+                else if (current == '"')
+                {
+                    inString = false;
+                }
+
+                continue;
+            }
+
+            if (current == '"')
+            {
+                inString = true;
+                continue;
+            }
+
+            if (current == opening)
+            {
+                depth++;
+            }
+            else if (current == closing)
+            {
+                depth--;
+                if (depth == 0)
+                {
+                    return json.Substring(objectStart, index - objectStart + 1);
+                }
+            }
+        }
+
+        return string.Empty;
+    }
+
+    private int FindNextNonWhitespace(string text, int startIndex)
+    {
+        for (int index = startIndex; index < text.Length; index++)
+        {
+            if (!char.IsWhiteSpace(text[index]))
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
+
+    private string NormalizeWorkflow(string value)
+    {
+        string normalized = string.IsNullOrWhiteSpace(value) ? "schedule" : value.Trim().ToLowerInvariant();
+        return normalized == "chat" ? "chat" : "schedule";
     }
 
     private void UpdateStatus()
