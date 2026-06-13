@@ -509,7 +509,17 @@ namespace ProyectoAgentesVirtuales.UnityBridge
                     @operator = item.@operator,
                     reason = item.reason,
                     target = item.target,
+                    category = item.category,
+                    preference_level = item.preference_level,
+                    value = item.value,
                     days = item.days,
+                    range = item.range == null
+                        ? null
+                        : new AgentTimeRange
+                        {
+                            start = item.range.start,
+                            end = item.range.end,
+                        },
                     values = item.values,
                 })
                 .ToArray();

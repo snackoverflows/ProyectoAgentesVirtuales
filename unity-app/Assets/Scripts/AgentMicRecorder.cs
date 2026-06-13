@@ -5,6 +5,7 @@ using UnityEngine.Networking;
 using System;
 using System.IO;
 using System.Text;
+using UnityEngine.EventSystems;
 using ProyectoAgentesVirtuales.UnityBridge;
 
 [RequireComponent(typeof(Button))]
@@ -22,6 +23,9 @@ public class AgentMicRecorder : MonoBehaviour
     public Text statusText;
     public Dropdown microphoneDropdown;
     [SerializeField] private bool debugLogPayloads = false;
+    [SerializeField] private Graphic micBackgroundGraphic;
+    [SerializeField] private Graphic[] syncedToggleGraphics;
+    [SerializeField] private string micRingObjectName = "MicRing";
 
     [Header("References")]
     public AgentBackendReceiver receiver;
@@ -46,6 +50,52 @@ public class AgentMicRecorder : MonoBehaviour
     private string activeMicrophoneDevice = string.Empty;
     private int sampleRate = 16000;
     private int maxSeconds = 120;
+    private float recordingStartedAt = -1f;
+    private ColorBlock cachedButtonColors;
+    private bool hasCachedButtonColors = false;
+    private Image micRingImage;
+
+    public bool IsRecording => isRecording;
+    public bool IsStartingRecording => isStartingRecording;
+    public int MaxRecordingSeconds => maxSeconds;
+    public float CurrentRecordingSeconds
+    {
+        get
+        {
+            if ((!isRecording && !isStartingRecording) || recordingStartedAt < 0f)
+            {
+                return 0f;
+            }
+
+            return Mathf.Clamp(Time.unscaledTime - recordingStartedAt, 0f, maxSeconds);
+        }
+    }
+
+    public float RemainingRecordingRatio
+    {
+        get
+        {
+            if (maxSeconds <= 0)
+            {
+                return 0f;
+            }
+
+            return 1f - Mathf.Clamp01(CurrentRecordingSeconds / maxSeconds);
+        }
+    }
+
+    public float RecordingProgressRatio
+    {
+        get
+        {
+            if (maxSeconds <= 0)
+            {
+                return 0f;
+            }
+
+            return Mathf.Clamp01(CurrentRecordingSeconds / maxSeconds);
+        }
+    }
 
     private void Start()
     {
@@ -58,8 +108,14 @@ public class AgentMicRecorder : MonoBehaviour
 
         if (recordButton != null)
         {
+            cachedButtonColors = recordButton.colors;
+            hasCachedButtonColors = true;
+            recordButton.transition = Selectable.Transition.None;
             recordButton.onClick.AddListener(ToggleRecording);
         }
+
+        ResolveToggleGraphics();
+        ResolveMicRing();
 
         UpdateStatus();
     }
@@ -70,6 +126,11 @@ public class AgentMicRecorder : MonoBehaviour
         {
             recordButton.onClick.RemoveListener(ToggleRecording);
         }
+    }
+
+    private void Update()
+    {
+        UpdateMicRingVisual();
     }
 
     public void ToggleRecording()
@@ -106,6 +167,7 @@ public class AgentMicRecorder : MonoBehaviour
 
         activeMicrophoneDevice = selectedDevice;
         isStartingRecording = true;
+        recordingStartedAt = Time.unscaledTime;
         recordingClip = Microphone.Start(selectedDevice, false, maxSeconds, sampleRate);
         StartCoroutine(WaitForMicrophoneStart(selectedDevice));
     }
@@ -132,6 +194,7 @@ public class AgentMicRecorder : MonoBehaviour
 
             recordingClip = null;
             isRecording = false;
+            recordingStartedAt = -1f;
             UpdateStatus();
             yield break;
         }
@@ -157,6 +220,7 @@ public class AgentMicRecorder : MonoBehaviour
         int lastPos = Microphone.GetPosition(selectedDevice);
         Microphone.End(selectedDevice);
         isRecording = false;
+        recordingStartedAt = -1f;
         UpdateStatus();
 
         // Notify receiver/UI that recording stopped and audio will be sent
@@ -609,6 +673,8 @@ public class AgentMicRecorder : MonoBehaviour
 
     private void UpdateStatus()
     {
+        UpdateRecordButtonVisual();
+
         if (statusText != null)
         {
             string deviceLabel = !string.IsNullOrWhiteSpace(activeMicrophoneDevice)
@@ -619,6 +685,120 @@ public class AgentMicRecorder : MonoBehaviour
                 ? $"Grabando... ({deviceLabel})"
                 : $"Listo ({deviceLabel})";
         }
+    }
+
+    private void UpdateRecordButtonVisual()
+    {
+        if (recordButton == null)
+        {
+            return;
+        }
+
+        if (EventSystem.current != null && EventSystem.current.currentSelectedGameObject == recordButton.gameObject)
+        {
+            EventSystem.current.SetSelectedGameObject(null);
+        }
+
+        ColorBlock colors = hasCachedButtonColors ? cachedButtonColors : recordButton.colors;
+        Color targetColor = isRecording || isStartingRecording
+            ? colors.selectedColor
+            : colors.normalColor;
+
+        if (recordButton.targetGraphic is Graphic graphic)
+        {
+            ApplyGraphicColor(graphic, targetColor);
+        }
+
+        if (syncedToggleGraphics != null)
+        {
+            for (int index = 0; index < syncedToggleGraphics.Length; index++)
+            {
+                Graphic syncedGraphic = syncedToggleGraphics[index];
+                if (syncedGraphic == null || syncedGraphic == recordButton.targetGraphic)
+                {
+                    continue;
+                }
+
+                ApplyGraphicColor(syncedGraphic, targetColor);
+            }
+        }
+    }
+
+    private void ResolveToggleGraphics()
+    {
+        if (recordButton == null)
+        {
+            return;
+        }
+
+        if (micBackgroundGraphic == null)
+        {
+            Transform micBgTransform = recordButton.transform.Find("MicBG");
+            if (micBgTransform != null)
+            {
+                micBackgroundGraphic = micBgTransform.GetComponent<Graphic>();
+            }
+        }
+
+        if (syncedToggleGraphics == null || syncedToggleGraphics.Length == 0)
+        {
+            if (micBackgroundGraphic != null)
+            {
+                syncedToggleGraphics = new[] { micBackgroundGraphic };
+            }
+            else if (recordButton.targetGraphic is Graphic targetGraphic)
+            {
+                syncedToggleGraphics = new[] { targetGraphic };
+            }
+        }
+    }
+
+    private void ResolveMicRing()
+    {
+        if (micRingImage != null)
+        {
+            return;
+        }
+
+        if (string.IsNullOrWhiteSpace(micRingObjectName))
+        {
+            return;
+        }
+
+        GameObject ringObject = GameObject.Find(micRingObjectName);
+        if (ringObject == null)
+        {
+            return;
+        }
+
+        micRingImage = ringObject.GetComponent<Image>();
+    }
+
+    private void UpdateMicRingVisual()
+    {
+        if (micRingImage == null)
+        {
+            ResolveMicRing();
+        }
+
+        if (micRingImage == null)
+        {
+            return;
+        }
+
+        bool isActive = isRecording || isStartingRecording;
+        micRingImage.fillAmount = isActive ? RecordingProgressRatio : 0f;
+    }
+
+    private void ApplyGraphicColor(Graphic graphic, Color targetColor)
+    {
+        if (graphic == null)
+        {
+            return;
+        }
+
+        graphic.CrossFadeColor(targetColor, 0f, true, true);
+        graphic.color = targetColor;
     }
 }
 

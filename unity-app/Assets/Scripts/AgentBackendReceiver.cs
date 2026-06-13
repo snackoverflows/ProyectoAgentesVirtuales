@@ -386,7 +386,11 @@ namespace ProyectoAgentesVirtuales.UnityBridge
         public string @operator;
         public string reason;
         public string target;
+        public string category;
+        public string preference_level;
+        public int value;
         public string[] days;
+        public AgentTimeRange range;
         public string[] values;
     }
 
