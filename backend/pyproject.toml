@@ -1,0 +1,62 @@
+[build-system]
+requires = ["setuptools>=69", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agente-virtual-backend"
+version = "0.1.0"
+description = "Backend y harness de benchmarking para un agente virtual con Unity."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "elevenlabs>=2.10.0",
+  "fastapi>=0.115.0",
+  "google-genai>=1.30.0",
+  "groq>=1.4.0",
+  "httpx>=0.28.0",
+  "python-dotenv>=1.0.1",
+  "python-multipart>=0.0.20",
+  "uvicorn[standard]>=0.30.0",
+]
+
+[project.optional-dependencies]
+benchmark = [
+  "pyyaml>=6.0.2",
+]
+local-stt = [
+  "moonshine-voice>=0.0.62",
+  "openai-whisper>=20240930",
+]
+local-tts = [
+  "kokoro==0.7.4; python_version < '3.13'",
+  "kokoro-onnx>=0.5.0",
+  "piper-tts>=1.4.2",
+  "soundfile>=0.13.1",
+]
+all = [
+  "agente-virtual-backend[benchmark,local-stt,local-tts]",
+]
+
+[tool.setuptools]
+py-modules = [
+  "action_module",
+  "audio_service",
+  "chat_service",
+  "constraints_eval",
+  "constraints_schema",
+  "constraints_score",
+  "error_module",
+  "input_module",
+  "integration_module",
+  "json_payload",
+  "llm_module",
+  "memory_module",
+  "output_module",
+  "schedule_service",
+  "stt_module",
+  "test_text",
+  "tts_module",
+]
+
+[tool.setuptools.packages.find]
+include = ["benchmarks*", "providers*"]

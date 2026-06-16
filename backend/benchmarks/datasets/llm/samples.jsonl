@@ -1,0 +1,1 @@
+{"sample_id":"llm_001","prompt":"Resume en dos oraciones que hace un agente virtual para horarios.","evaluation_focus":"coherence,instruction_following","reference_notes":"Debe mencionar interpretacion conversacional y generacion determinista."}

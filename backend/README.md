@@ -83,6 +83,15 @@ Reglas clave:
 - `soft` y `optimization` ordenan soluciones validas.
 
 ## Pruebas locales
+- Instalacion recomendada del backend y benchmarking:
+
+```bash
+cd backend
+.\.venv\Scripts\python.exe -m pip install -e .[all]
+```
+
+Nota: `Kokoro` puede requerir Python `3.10` o `3.11`. En Python `3.13`, el resto del set principal del benchmark si se puede instalar y probar en este mismo entorno.
+
 - Harness textual sin STT/TTS: `backend/test_text.py`
 - Ejemplo:
 
@@ -91,13 +100,55 @@ cd backend
 .\.venv\Scripts\python.exe test_text.py
 ```
 
+## Benchmarking
+El backend incluye un benchmark desacoplado de FastAPI en `backend/benchmarks/`.
+
+Sirve para:
+- comparar latencia entre modelos `LLM`, `STT` y `TTS`
+- calcular `WER` en `STT`
+- dejar resultados en `CSV` y `JSONL`
+
+Comandos base:
+
+```powershell
+cd backend
+$env:BENCHMARK_REPETITIONS='3'
+$env:STT_PROVIDER='whisper'
+.\.venv\Scripts\python.exe benchmarks\runners\run_stt_benchmark.py
+```
+
+Salidas:
+- `benchmarks/outputs/raw/*.csv`
+- `benchmarks/outputs/summary/*.csv`
+
+Modelos del set actual:
+- `LLM`: Gemini, Groq, Ollama
+- `STT`: ElevenLabs, Gemini, Groq, Whisper, Moonshine
+- `TTS`: ElevenLabs, Gemini, Piper, Kokoro
+
+La guia completa del benchmark, prerequisitos y comandos por modelo vive en [benchmarks/README.md](/abs/path/c:/Users/deanv/OneDrive/Escritorio/Tilapez/ProyectoAgentesVirtuales/backend/benchmarks/README.md).
+
 ## Variables de entorno
+- `LLM_PROVIDER`, `STT_PROVIDER`, `TTS_PROVIDER`
 - `LLM_API_KEY`
 - `LLM_MODEL` (opcional)
+- `GEMINI_STT_MODEL` (opcional)
+- `GEMINI_TTS_MODEL` (opcional)
+- `GEMINI_TTS_VOICE` (opcional)
+- `GROQ_API_KEY`
+- `GROQ_MODEL` (opcional)
+- `GROQ_STT_MODEL` (opcional)
+- `OLLAMA_MODEL` (opcional)
 - `LLM_SYSTEM_PROMPT` (opcional)
 - `ELEVENLABS_API_KEY`
+- `STT_MODEL` (opcional, `scribe_v2`)
+- `TTS_MODEL` (opcional)
 - `TTS_OUTPUT_FORMAT` (opcional)
-- `TTS_STREAM_MODEL` (opcional)
+- `TTS_VOICE_ID` (opcional)
+- `WHISPER_MODEL` (opcional)
+- `MOONSHINE_MODEL` (opcional)
+- `PIPER_BINARY`, `PIPER_MODEL_PATH`, `PIPER_CONFIG_PATH`
+- `KOKORO_MODEL_PATH`, `KOKORO_VOICE`, `KOKORO_LANGUAGE`
 - `BACKEND_DEBUG_LOGS` (opcional)
 - `LLM_RETRIES` (opcional, default `2`)
 - `LLM_RETRY_DELAY` (opcional, default `0.4`)

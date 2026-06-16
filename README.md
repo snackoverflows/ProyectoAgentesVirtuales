@@ -43,7 +43,17 @@ En `cmd`:
 python -m pip install fastapi uvicorn python-dotenv google-genai elevenlabs python-multipart
 ```
 
-4. Agrega las API keys de Gemini y ElevenLabs en `backend/config.env`.
+Alternativa recomendada para Windows con benchmarking y proveedores locales:
+
+```powershell
+.\scripts\bootstrap_local.ps1
+.\scripts\bootstrap_models.ps1
+```
+
+4. Agrega las API keys que vayas a usar en `backend/config.env`:
+- `LLM_API_KEY` para Gemini,
+- `GROQ_API_KEY` para Groq,
+- `ELEVENLABS_API_KEY` para ElevenLabs.
 5. Si quieres verificar primero que el flujo textual con el LLM funciona sin Unity ni STT/TTS, corre:
 
 ```bash
@@ -78,6 +88,56 @@ Durante la interaccion:
 - el boton `Restricciones` muestra las restricciones y preferencias activas.
 
 Estos botones sirven para guiar a la persona usuaria mientras conversa con el agente y construye o genera su horario.
+
+## Bootstrap local
+Para preparar el backend y los modelos locales en Windows:
+
+1. Ejecuta `.\scripts\bootstrap_local.ps1`
+Hace:
+- crea `backend\.venv` si falta,
+- instala dependencias Python con `backend/pyproject.toml`,
+- crea carpetas para modelos locales,
+- copia `backend/config.env.example` a `backend/config.env` si hace falta,
+- detecta `ollama`, `ffmpeg` y `piper`.
+
+2. Ejecuta `.\scripts\bootstrap_models.ps1`
+Hace:
+- precarga `Whisper` local,
+- precarga `Moonshine`,
+- descarga `gemma3` en `Ollama`,
+- y te muestra lo que sigue pendiente para `Piper` y `Kokoro`.
+
+Notas:
+- `Kokoro` puede requerir un entorno Python `3.10` o `3.11`.
+- `Piper` requiere binarios o modelos externos aparte del `venv`.
+
+## Benchmarking
+El proyecto incluye un benchmark reproducible para `LLM`, `STT` y `TTS` en `backend/benchmarks/`.
+
+Sirve para:
+- comparar latencia entre modelos cloud y locales
+- medir `WER` en `STT`
+- dejar resultados en `CSV` y `JSONL`
+
+Flujo recomendado:
+1. Ejecuta `.\scripts\bootstrap_local.ps1`
+2. Ejecuta `.\scripts\bootstrap_models.ps1`
+3. Completa `backend/config.env`
+4. Corre los runners desde la raiz del repo o desde `backend/`
+
+Ejemplo rapido:
+
+```powershell
+$env:BENCHMARK_REPETITIONS='3'
+$env:STT_PROVIDER='whisper'
+& backend\.venv\Scripts\python.exe backend\benchmarks\runners\run_stt_benchmark.py
+```
+
+Salidas:
+- `backend/benchmarks/outputs/summary/*.csv`
+- `backend/benchmarks/outputs/raw/*.csv`
+
+La documentacion completa del benchmark, prerequisitos y comandos por modelo vive en [backend/benchmarks/README.md](/abs/path/c:/Users/deanv/OneDrive/Escritorio/Tilapez/ProyectoAgentesVirtuales/backend/benchmarks/README.md).
 
 ## Como funciona
 Flujo general:
@@ -269,13 +329,27 @@ Archivo local:
 - `backend/config.env`
 
 Variables relevantes:
+- `LLM_PROVIDER`
+- `STT_PROVIDER`
+- `TTS_PROVIDER`
 - `LLM_API_KEY`
 - `LLM_MODEL`
-- `LLM_EMOTION_PROFILES`
+- `GEMINI_STT_MODEL`
+- `GEMINI_TTS_MODEL`
+- `GEMINI_TTS_VOICE`
+- `GROQ_API_KEY`
+- `GROQ_MODEL`
+- `GROQ_STT_MODEL`
+- `OLLAMA_MODEL`
 - `ELEVENLABS_API_KEY`
-- `STT_MODEL_ID`
-- `TTS_MODEL_ID`
+- `STT_MODEL`
+- `TTS_MODEL`
 - `TTS_VOICE_ID`
+- `WHISPER_MODEL`
+- `MOONSHINE_MODEL`
+- `PIPER_BINARY`
+- `PIPER_MODEL_PATH`
+- `KOKORO_MODEL_PATH`
 - `BACKEND_DEBUG_LOGS`
 - `LLM_RETRIES`
 - `LLM_RETRY_DELAY`

@@ -6,24 +6,22 @@ import os
 
 from input_module import InputModule
 from memory_module import MemoryModule
-from llm_module import LLMModule
 from action_module import ActionModule
-from tts_module import TTSModule
-from stt_module import STTModule
 from output_module import OutputModule
 from error_module import ErrorHandler
 from schedule_service import ScheduleService
 from chat_service import ChatService
 from audio_service import AudioService
+from providers import build_runtime_llm_module, build_runtime_stt_module, build_runtime_tts_module
 
 app = FastAPI(title="Agente Virtual Backend")
 
 input_module = InputModule()
 memory_module = MemoryModule()
-llm_module = LLMModule()
+llm_module = build_runtime_llm_module()
 action_module = ActionModule()
-tts_module = TTSModule()
-stt_module = STTModule()
+tts_module = build_runtime_tts_module()
+stt_module = build_runtime_stt_module()
 output_module = OutputModule()
 
 # Retry tuning knobs (latency-focused defaults)

@@ -14,7 +14,7 @@ class STTModule:
     """
 
     def __init__(self, model_id: str = None, client: typing.Any = None):
-        self.model_id = self._resolve_model_id(model_id or os.getenv("STT_MODEL_ID"))
+        self.model_id = self._resolve_model_id(model_id or os.getenv("STT_MODEL"))
         self.client = client
 
     def _resolve_model_id(self, model_id: typing.Optional[str]) -> str:

@@ -1,0 +1,6 @@
+run_name: tts_baseline
+task_type: tts
+provider: elevenlabs
+repetitions: 5
+warmup_runs: 1
+dataset_path: backend/benchmarks/datasets/tts/samples.jsonl

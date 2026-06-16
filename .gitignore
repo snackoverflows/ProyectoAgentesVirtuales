@@ -12,6 +12,15 @@ backend/tests/
 backend/test_*.json
 backend/*.log
 backend/.ipynb_checkpoints/
+backend/benchmarks/outputs/
+backend/benchmarks/datasets/**/generated/
+backend/benchmarks/**/*.mp3
+backend/benchmarks/**/*.wav
+!backend/benchmarks/datasets/stt/audio/.gitkeep
+!backend/benchmarks/datasets/stt/audio/nora.wav
+!backend/benchmarks/datasets/stt/audio/example.wav
+backend/models/
+backend/backend/
 .coverage
 htmlcov/
 .pytest_cache/

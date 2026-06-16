@@ -1,0 +1,7 @@
+run_name: llm_baseline
+task_type: llm
+provider: gemini
+repetitions: 5
+warmup_runs: 1
+dataset_path: backend/benchmarks/datasets/llm/samples.jsonl
+system_prompt: ""

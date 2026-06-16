@@ -23,10 +23,10 @@ class TTSModule:
         model_id: Modelo ElevenLabs
         """
         self.voice_id = voice_id or os.getenv("TTS_VOICE_ID") or "JBFqnCBsd6RMkjVDRZzb"
-        self.model_id = model_id or os.getenv("TTS_MODEL_ID") or "eleven_multilingual_v2"
+        self.model_id = model_id or os.getenv("TTS_MODEL") or "eleven_multilingual_v2"
         self.client = client
         self.output_format = os.getenv("TTS_OUTPUT_FORMAT", "mp3_44100_128")
-        self.streaming_model = os.getenv("TTS_STREAM_MODEL", "eleven_flash_v2_5")
+        self.streaming_model = self.model_id
 
     def _get_client(self):
         if self.client is not None:
