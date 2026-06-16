@@ -56,3 +56,20 @@ def upsert_records(existing: Iterable[dict], incoming: Iterable[dict], key_field
         merged[key] = record
 
     return [merged[key] for key in ordered_keys]
+
+
+def replace_record_groups(existing: Iterable[dict], incoming: Iterable[dict], group_fields: Sequence[str]) -> List[dict]:
+    incoming_rows = list(incoming)
+    if not incoming_rows:
+        return list(existing)
+
+    incoming_groups = {
+        tuple(row.get(field) for field in group_fields)
+        for row in incoming_rows
+    }
+    preserved = [
+        row
+        for row in existing
+        if tuple(row.get(field) for field in group_fields) not in incoming_groups
+    ]
+    return preserved + incoming_rows
