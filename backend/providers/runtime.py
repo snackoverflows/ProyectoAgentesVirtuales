@@ -4,13 +4,11 @@ import json
 import os
 from typing import Any, Dict, List, Optional
 
-from dotenv import load_dotenv
-
+from env_config import load_project_env
 from providers.base import BaseLLMProvider, BaseSTTProvider, BaseTTSProvider
 from providers.factories import build_llm_provider, build_stt_provider, build_tts_provider
 
-load_dotenv("config.env", override=False)
-load_dotenv()
+load_project_env()
 
 
 class ProviderBackedLLMModule:
@@ -155,12 +153,18 @@ class ProviderBackedLLMModule:
             "- Mantener y actualizar draft; no resetear salvo que el usuario lo pida.\n"
             "- Cada item en courses es seccion o grupo alternativo.\n"
             "- Cada curso usa: course, group, professor, meetings.\n"
+            "- group y professor pueden faltar individualmente mientras construyes el borrador, pero no ambos a la vez al momento de generar.\n"
+            "- Para generar un horario, cada curso necesita nombre de curso, al menos uno entre group o professor, y meetings con day/start/end.\n"
             "- Cada meeting usa: day, start, end.\n"
             "- Formato obligatorio de group: Grupo N.\n"
             "- Horas estructuradas en HH:MM.\n"
             "- En assistant_message, nunca uses HH:MM ni formato 24h.\n"
+            "- Si falta group pero hay professor y meetings, puedes seguir construyendo el borrador.\n"
+            "- Si falta professor pero hay group y meetings, puedes seguir construyendo el borrador.\n"
+            "- Si faltan group y professor juntos, pide al menos uno antes de generar.\n"
+            "- Si faltan meetings, pide los horarios antes de generar.\n"
             "- Si falta informacion clave, preguntar solo por lo faltante.\n"
-            "- should_generate=true SOLO si el usuario confirma explicitamente generar.\n\n"
+            "- should_generate=true SOLO si el usuario confirma explicitamente generar y ya tienes los datos necesarios de cada curso.\n\n"
             "EMOCION:\n"
             "- emotion_profile obligatorio y debe ser uno de: " + ", ".join(self.available_emotion_profiles) + ".\n\n"
             f"Historial reciente:\n{history_json}\n\n"

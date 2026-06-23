@@ -2,7 +2,7 @@ import json
 from typing import Any, Dict, List, Optional, Tuple
 
 from constraints_eval import evaluate_soft
-from constraints_schema import normalize_constraints, validate_constraints
+from constraints_schema import canonicalize_constraints_payload, normalize_constraints, validate_constraints
 from json_payload import extract_json_object
 
 
@@ -72,14 +72,123 @@ class ScheduleService:
             and isinstance(meeting.get("end"), str)
         )
 
-    def _is_canonical_course(self, course: Dict[str, Any]) -> bool:
+    def _normalize_course_field(self, value: Any) -> str:
+        return value.strip() if isinstance(value, str) else ""
+
+    def _mentions_avoid_afternoon(self, user_text: str) -> bool:
+        lowered = (user_text or "").strip().casefold()
+        afternoon_markers = (
+            "sin tardes",
+            "sin la tarde",
+            "evitar clases en la tarde",
+            "evitar la tarde",
+            "no en la tarde",
+            "no por la tarde",
+            "no quiero clases en la tarde",
+            "no quiero ir en la tarde",
+            "solo en la mañana",
+            "solo manana",
+            "solo mañana",
+        )
+        return any(marker in lowered for marker in afternoon_markers)
+
+    def _contains_time_window_rule(self, rules: List[Dict[str, Any]], start: str, end: str, operator: str) -> bool:
+        for rule in rules:
+            if not isinstance(rule, dict):
+                continue
+            time_range = rule.get("range") or {}
+            if (
+                rule.get("type") == "time_window"
+                and rule.get("operator") == operator
+                and time_range.get("start") == start
+                and time_range.get("end") == end
+            ):
+                return True
+        return False
+
+    def _apply_user_text_constraint_hints(
+        self,
+        user_text: str,
+        parsed_state: Dict[str, Any],
+        current_draft: Dict[str, Any],
+    ) -> Dict[str, Any]:
+        if not isinstance(parsed_state, dict):
+            return parsed_state
+
+        if not self._mentions_avoid_afternoon(user_text):
+            return parsed_state
+
+        hinted_state = dict(parsed_state)
+        draft = self._repair_schedule_draft(hinted_state.get("draft", current_draft), current_draft)
+        constraints = draft.get("constraints")
+        if not isinstance(constraints, dict):
+            constraints = self.build_default_schedule_draft()["constraints"]
+            draft["constraints"] = constraints
+
+        hard_rules = constraints.get("hard")
+        if not isinstance(hard_rules, list):
+            hard_rules = []
+            constraints["hard"] = hard_rules
+
+        if not self._contains_time_window_rule(hard_rules, "12:00", "23:59", "outside"):
+            hard_rules.append(
+                {
+                    "type": "time_window",
+                    "scope": "meeting",
+                    "operator": "outside",
+                    "range": {"start": "12:00", "end": "23:59"},
+                    "reason": "Evitar clases en la tarde",
+                }
+            )
+
+        hinted_state["draft"] = draft
+
+        assistant_message = self._normalize_course_field(hinted_state.get("assistant_message"))
+        if (
+            "de que hora a que hora" in assistant_message.casefold()
+            or "de ? a ?" in assistant_message.casefold()
+            or "evitar horario" in assistant_message.casefold()
+        ):
+            courses = draft.get("courses")
+            if isinstance(courses, list) and not courses:
+                hinted_state["assistant_message"] = (
+                    "Tomé en cuenta que prefieres evitar clases en la tarde. "
+                    "Ahora necesito que me indiques los cursos para seguir."
+                )
+            else:
+                hinted_state["assistant_message"] = "Tomé en cuenta que prefieres evitar clases en la tarde."
+
+        return hinted_state
+
+    def _repair_course_entry(self, course: Any) -> Optional[Dict[str, Any]]:
         if not isinstance(course, dict):
-            return False
-        if set(course.keys()) - {"course", "group", "professor", "meetings", "tags"}:
-            return False
-        if not isinstance(course.get("course"), str) or not isinstance(course.get("group"), str) or not isinstance(course.get("professor"), str):
-            return False
+            return None
+
+        repaired = {
+            "course": self._normalize_course_field(course.get("course")),
+            "group": self._normalize_course_field(course.get("group") or course.get("section")),
+            "professor": self._normalize_course_field(course.get("professor")),
+            "meetings": [],
+            "tags": course.get("tags", []) if isinstance(course.get("tags"), list) else [],
+        }
+
         meetings = course.get("meetings")
+        if meetings is None:
+            meetings = course.get("options", [])
+        if isinstance(meetings, list):
+            repaired["meetings"] = [meeting.copy() for meeting in meetings if isinstance(meeting, dict)]
+
+        return repaired
+
+    def _is_canonical_course(self, course: Dict[str, Any]) -> bool:
+        repaired = self._repair_course_entry(course)
+        if repaired is None:
+            return False
+        if set(repaired.keys()) - {"course", "group", "professor", "meetings", "tags"}:
+            return False
+        if not isinstance(repaired.get("course"), str) or not isinstance(repaired.get("group"), str) or not isinstance(repaired.get("professor"), str):
+            return False
+        meetings = repaired.get("meetings")
         return isinstance(meetings, list) and all(self._is_canonical_meeting(meeting) for meeting in meetings)
 
     def _is_canonical_draft(self, draft: Dict[str, Any]) -> bool:
@@ -101,12 +210,98 @@ class ScheduleService:
             return ["constraints debe ser un objeto."]
         return validate_constraints(constraints)
 
-    def _build_contract_violation_message(self) -> str:
-        return "Necesito corregir el formato del borrador antes de generar. Revisa cursos y restricciones para continuar."
+    def _repair_schedule_draft(self, draft: Any, fallback_draft: Dict[str, Any]) -> Dict[str, Any]:
+        if not isinstance(draft, dict):
+            return fallback_draft
+
+        repaired = dict(draft)
+        raw_courses = repaired.get("courses")
+        if isinstance(raw_courses, list):
+            repaired["courses"] = [
+                repaired_course
+                for repaired_course in (self._repair_course_entry(course) for course in raw_courses)
+                if repaired_course is not None
+            ]
+        constraints = repaired.get("constraints")
+        if isinstance(constraints, dict):
+            repaired["constraints"] = canonicalize_constraints_payload(constraints)
+        return repaired
+
+    def _collect_course_missing_items(self, courses: List[Dict[str, Any]]) -> List[str]:
+        missing: List[str] = []
+        for index, course in enumerate(courses, start=1):
+            course_name = self._normalize_course_field(course.get("course")) or f"curso {index}"
+            group = self._normalize_course_field(course.get("group"))
+            professor = self._normalize_course_field(course.get("professor"))
+            meetings = course.get("meetings") if isinstance(course.get("meetings"), list) else []
+
+            if not course_name or course_name == f"curso {index}":
+                missing.append(f"{course_name}: nombre del curso")
+                continue
+
+            if not group and not professor:
+                missing.append(f"{course_name}: grupo o profesor")
+            if not meetings:
+                missing.append(f"{course_name}: horarios")
+
+        return missing
+
+    def _build_missing_course_data_message(self, missing_items: List[str]) -> str:
+        if not missing_items:
+            return "Todavia me falta informacion de los cursos antes de generar el horario."
+
+        first_missing = missing_items[0]
+        if len(missing_items) == 1:
+            return f"Antes de generar, me falta {first_missing}. Comparteme ese dato y sigo."
+        return f"Antes de generar, me faltan algunos datos. Por ejemplo, {first_missing}. Comparteme lo que falta y sigo."
+
+    def _enforce_generation_readiness(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        draft = state.get("draft")
+        if not isinstance(draft, dict):
+            return state
+
+        courses = draft.get("courses")
+        if not isinstance(courses, list):
+            state["status"] = "collecting"
+            state["should_generate"] = False
+            state["missing_items"] = ["courses"]
+            state["assistant_message"] = "Antes de generar, necesito que me indiques los cursos."
+            return state
+
+        if not courses:
+            state["status"] = "collecting"
+            state["should_generate"] = False
+            state["missing_items"] = ["courses"]
+            assistant_message = self._normalize_course_field(state.get("assistant_message"))
+            if "tarde" in assistant_message.casefold():
+                state["assistant_message"] = f"{assistant_message} Ahora necesito que me indiques los cursos para poder armar el horario."
+            else:
+                state["assistant_message"] = "Tomé en cuenta esa preferencia. Ahora necesito que me indiques los cursos para poder armar el horario."
+            return state
+
+        missing_items = self._collect_course_missing_items(courses)
+        if missing_items:
+            state["status"] = "collecting"
+            state["should_generate"] = False
+            state["missing_items"] = missing_items
+            state["assistant_message"] = self._build_missing_course_data_message(missing_items)
+
+        return state
+
+    def _build_user_safe_contract_message(self, draft: Dict[str, Any], assistant_message: str) -> str:
+        courses = draft.get("courses")
+        if isinstance(courses, list) and not courses:
+            return "Tomé en cuenta esa preferencia. Ahora necesito que me indiques los cursos para poder armar el horario."
+
+        message = (assistant_message or "").strip()
+        if message and "contrato" not in message.casefold() and "formato del borrador" not in message.casefold():
+            return message
+
+        return "Tomé en cuenta esa preferencia. Sigamos ajustando cursos y restricciones para dejar listo el horario."
 
     def enforce_schedule_contract(self, parsed_state: Dict[str, Any], current_draft: Dict[str, Any], warnings: List[str]) -> Dict[str, Any]:
         assistant_message = parsed_state.get("assistant_message") or "Sigo construyendo el borrador del horario."
-        draft = parsed_state.get("draft", current_draft)
+        draft = self._repair_schedule_draft(parsed_state.get("draft", current_draft), current_draft)
         state = {
             "assistant_message": assistant_message,
             "draft": draft,
@@ -123,10 +318,10 @@ class ScheduleService:
         if contract_errors:
             state["status"] = "collecting"
             state["should_generate"] = False
-            state["assistant_message"] = self._build_contract_violation_message()
-            warnings.append("Las restricciones no cumplen el contrato canonico y se bloqueo la generacion.")
-            warnings.extend(contract_errors)
-        return state
+            state["assistant_message"] = self._build_user_safe_contract_message(draft, assistant_message)
+            return state
+
+        return self._enforce_generation_readiness(state)
 
     def build_schedule_report(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         courses = payload.get("courses", [])
@@ -277,6 +472,7 @@ class ScheduleService:
                 "should_generate": False,
             }
 
+        parsed_state = self._apply_user_text_constraint_hints(user_text, parsed_state, current_draft)
         log_debug("llm.schedule.parsed", parsed_state)
         state = self.enforce_schedule_contract(parsed_state, current_draft, warnings)
         emotion_profile = normalize_emotion_profile(parsed_state.get("emotion_profile", self.default_emotion_profile))

@@ -1,11 +1,12 @@
 # stt_module.py
 from elevenlabs.client import ElevenLabs
 import os
-from dotenv import load_dotenv
 import typing
 import json
 
-load_dotenv()
+from env_config import load_project_env
+
+load_project_env()
 
 
 class STTModule:

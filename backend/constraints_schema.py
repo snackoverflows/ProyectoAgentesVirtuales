@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from typing import Any, Dict, List, Optional, Tuple
 
 
@@ -43,6 +44,18 @@ KNOWN_METRICS = {
     "courses_per_day",
     "meetings_per_day",
     "gaps_by_day",
+}
+
+METRIC_TARGET_ALIASES = {
+    "course_count": "distinct_courses",
+    "courses": "distinct_courses",
+    "days": "days_on_campus",
+    "days_count": "days_on_campus",
+    "dias": "days_on_campus",
+    "day_count": "days_on_campus",
+    "gaps": "total_gap_minutes",
+    "morning": "morning_classes",
+    "sections": "selected_sections",
 }
 
 SUPPORTED_SCORING_MODES = {"fixed", "linear"}
@@ -147,6 +160,13 @@ def _normalize_values(value: Any) -> List[str]:
 
 def _infer_scope(rule_type: str) -> str:
     return DEFAULT_SCOPE_BY_TYPE.get(rule_type, "schedule")
+
+
+def _canonical_metric_target(value: Any) -> str:
+    target = _strip_text(value)
+    if not target:
+        return ""
+    return METRIC_TARGET_ALIASES.get(target.casefold(), target)
 
 
 def _normalize_scoring_config(value: Any) -> Tuple[Dict[str, Any], List[str]]:
@@ -304,7 +324,12 @@ def _normalize_objective(item: Any) -> Tuple[Optional[Dict[str, Any]], List[str]
         return None, ["optimization objective must be an object with operator/target/priority."]
 
     operator = _strip_text(item.get("operator")) or "maximize"
-    target = _strip_text(item.get("target"))
+    if operator == "min":
+        operator = "minimize"
+    elif operator == "max":
+        operator = "maximize"
+
+    target = _canonical_metric_target(item.get("target"))
     if not target:
         errors.append("optimization objective requires a target.")
     if operator not in SUPPORTED_OBJECTIVE_OPERATORS:
@@ -375,7 +400,7 @@ def validate_rule(rule: Any, kind: str = "hard") -> Tuple[Optional[Dict[str, Any
 
     days = _normalize_days(rule.get("days"))
     values = _normalize_values(rule.get("values"))
-    target = _strip_text(rule.get("target")) or None
+    target = _canonical_metric_target(rule.get("target")) or None
 
     time_range: Dict[str, str] = {}
     range_errors: List[str] = []
@@ -446,6 +471,53 @@ def validate_rule(rule: Any, kind: str = "hard") -> Tuple[Optional[Dict[str, Any
 def validate_constraints(raw: Any) -> List[str]:
     normalized = normalize_constraints(raw)
     return list(normalized.get("validation_errors", []))
+
+
+def canonicalize_constraints_payload(raw: Any) -> Any:
+    if not _is_dict(raw):
+        return raw
+
+    payload = deepcopy(raw)
+
+    for rule_group in ("hard", "soft"):
+        rules = payload.get(rule_group)
+        if not _is_list(rules):
+            continue
+        for rule in rules:
+            if not _is_dict(rule):
+                continue
+            if rule.get("type") == "metric" and "target" in rule:
+                canonical_target = _canonical_metric_target(rule.get("target"))
+                if canonical_target:
+                    rule["target"] = canonical_target
+            if rule.get("type") == "day" and _is_list(rule.get("days")):
+                normalized_days = _normalize_days(rule.get("days"))
+                if normalized_days:
+                    rule["days"] = normalized_days
+
+    optimization = payload.get("optimization")
+    if _is_dict(optimization):
+        objectives = optimization.get("objectives")
+        if _is_list(objectives):
+            for objective in objectives:
+                if not _is_dict(objective):
+                    continue
+                operator = _strip_text(objective.get("operator"))
+                if operator == "min":
+                    objective["operator"] = "minimize"
+                elif operator == "max":
+                    objective["operator"] = "maximize"
+
+                if "target" in objective:
+                    canonical_target = _canonical_metric_target(objective.get("target"))
+                    if canonical_target:
+                        objective["target"] = canonical_target
+
+                priority = _to_int(objective.get("priority"), None)
+                if priority is not None:
+                    objective["priority"] = priority
+
+    return payload
 
 
 def normalize_constraints(raw: Dict[str, Any]) -> Dict[str, Any]:

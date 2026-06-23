@@ -2,9 +2,10 @@
 from elevenlabs.client import ElevenLabs
 import os
 from typing import Iterator, List, Tuple
-from dotenv import load_dotenv
 
-load_dotenv()
+from env_config import load_project_env
+
+load_project_env()
 
 
 class TTSModule:

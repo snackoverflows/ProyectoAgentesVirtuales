@@ -7,12 +7,10 @@ from pathlib import Path
 from typing import Optional
 
 import httpx
-from dotenv import load_dotenv
-
+from env_config import load_project_env
 from providers.base import BaseSTTProvider, BenchmarkMetadata, STTResult
 
-load_dotenv("config.env", override=False)
-load_dotenv()
+load_project_env()
 
 
 class GroqSTTProvider(BaseSTTProvider):

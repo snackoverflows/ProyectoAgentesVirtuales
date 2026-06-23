@@ -6,14 +6,13 @@ import time
 import wave
 from typing import Optional
 
-from dotenv import load_dotenv
+from env_config import load_project_env
 from google import genai
 from google.genai import types
 
 from providers.base import BaseTTSProvider, BenchmarkMetadata, TTSResult
 
-load_dotenv("config.env", override=False)
-load_dotenv()
+load_project_env()
 
 
 class GeminiTTSProvider(BaseTTSProvider):

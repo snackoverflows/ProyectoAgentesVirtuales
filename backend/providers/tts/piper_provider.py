@@ -9,12 +9,10 @@ import wave
 from pathlib import Path
 from typing import Optional
 
-from dotenv import load_dotenv
-
+from env_config import load_project_env
 from providers.base import BaseTTSProvider, BenchmarkMetadata, TTSResult
 
-load_dotenv("config.env", override=False)
-load_dotenv()
+load_project_env()
 
 
 class PiperTTSProvider(BaseTTSProvider):

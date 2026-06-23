@@ -2,11 +2,10 @@
 import json
 import os
 from typing import Any, Dict, List, Optional
-from dotenv import load_dotenv
+from env_config import load_project_env
 from google import genai
 
-load_dotenv("config.env", override=False)
-load_dotenv()
+load_project_env()
 
 
 class LLMModule:
@@ -181,6 +180,8 @@ class LLMModule:
             "- Mantener y actualizar draft; no resetear salvo que el usuario lo pida.\n"
             "- Cada item en courses es seccion/grupo alternativo.\n"
             "- Cada curso usa: course, group, professor, meetings.\n"
+            "- group y professor pueden faltar individualmente mientras construyes el borrador, pero no ambos a la vez al momento de generar.\n"
+            "- Para generar un horario, cada curso necesita nombre de curso, al menos uno entre group o professor, y meetings con day/start/end.\n"
             "- Cada meeting usa: day, start, end.\n"
             "- Formato de professor: Nombre o Nombre Apellido. El apellido no es obligatorio; si aparece, cada palabra debe iniciar con mayuscula (ejemplos: Juan, Juan Perez).\n"
             "- Formato obligatorio de course: Capitaliza cada palabra (ejemplo: Calculo Integral).\n"
@@ -191,7 +192,10 @@ class LLMModule:
             "- En assistant_message, nunca uses HH:MM ni formato 24h.\n"
             "- En assistant_message, expresa siempre las horas en formato de 12 horas, en palabras, por ejemplo: 'siete y cincuenta de la mañana' o 'tres de la tarde'.\n"
             "- En assistant_message, usa 'de la mañana' para horas antes de las 12 y 'de la tarde' para horas desde las 12 en adelante.\n"
-            "- Si falta professor: usa 'Desconocido' o pide aclaracion breve.\n"
+            "- Si falta professor pero hay group y meetings, puedes seguir construyendo el borrador.\n"
+            "- Si falta group pero hay professor y meetings, puedes seguir construyendo el borrador.\n"
+            "- Si faltan group y professor juntos, pide al menos uno de los dos antes de generar.\n"
+            "- Si faltan meetings, pide los horarios antes de generar.\n"
             "- Si falta informacion clave, preguntar solo por lo faltante.\n"
             "- No inventar max_per_day/top_n si no lo pide el usuario.\n\n"
             "- Si el usuario expresa preferencias ambiguas (poco, mucho, etc.), no las traduzcas a un numero duro automaticamente.\n"
@@ -201,7 +205,7 @@ class LLMModule:
             "- Solo crea hard metric con value numerico cuando el usuario lo diga explicitamente o lo confirme.\n"
             "- Recuerda la jerarquia: hard > soft > optimization. No conviertas una preferencia vaga en hard.\n\n"
             "REGLAS DE COHERENCIA:\n"
-            "- should_generate=true SOLO si el usuario confirma explicitamente generar.\n"
+            "- should_generate=true SOLO si el usuario confirma explicitamente generar y ya tienes los datos necesarios de cada curso.\n"
             "- Si should_generate=false, assistant_message NO puede decir que el horario ya fue generado.\n"
             "- Si should_generate=true, status debe ser awaiting_confirmation o equivalente a ejecucion inmediata.\n"
             "- Si aun faltan datos, usar status=collecting.\n\n"

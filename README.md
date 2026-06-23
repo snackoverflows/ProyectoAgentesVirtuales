@@ -43,42 +43,17 @@ En `cmd`:
 python -m pip install fastapi uvicorn python-dotenv google-genai elevenlabs python-multipart
 ```
 
-Alternativa recomendada para Windows con benchmarking y proveedores locales:
-
-```powershell
-.\scripts\bootstrap_local.ps1
-.\scripts\bootstrap_models.ps1
-```
-
-4. Agrega las API keys que vayas a usar en `backend/config.env`:
-- `LLM_API_KEY` para Gemini,
-- `GROQ_API_KEY` para Groq,
-- `ELEVENLABS_API_KEY` para ElevenLabs.
-5. Si quieres verificar primero que el flujo textual con el LLM funciona sin Unity ni STT/TTS, corre:
-
-```bash
-cd backend
-.\.venv\Scripts\python.exe test_text.py
-```
-
-Esto abre una prueba interactiva por consola. Escribe mensajes como:
-
-```text
-humanidades con Marta grupo 1, lunes de 7 a 8
-```
-
-Si todo esta bien, el script devolvera un payload estructurado con campos como `text`, `state` y, cuando corresponda, `schedule_report`.
-
-6. Levanta el backend desde la carpeta `backend/` con:
+4. Agrega las API keys de Gemini y ElevenLabs en `backend/config.env`.
+5. Levanta el backend desde la carpeta `backend/` con:
 
 ```bash
 py -m uvicorn integration_module:app --host 127.0.0.1 --port 8000
 ```
 
-7. Abre el proyecto de Unity en `unity-app/`.
-8. Carga la escena `Test_Map`.
-9. Presiona `Play` en Unity.
-10. Usa el boton del microfono para interactuar:
+6. Abre el proyecto de Unity en `unity-app/`.
+7. Carga la escena `Test_Map`.
+8. Presiona `Play` en Unity.
+9. Usa el boton del microfono para interactuar:
 - presiona una vez para empezar a grabar,
 - presiona de nuevo para detener y enviar el audio al backend.
 
@@ -89,59 +64,9 @@ Durante la interaccion:
 
 Estos botones sirven para guiar a la persona usuaria mientras conversa con el agente y construye o genera su horario.
 
-## Bootstrap local
-Para preparar el backend y los modelos locales en Windows:
-
-1. Ejecuta `.\scripts\bootstrap_local.ps1`
-Hace:
-- crea `backend\.venv` si falta,
-- instala dependencias Python con `backend/pyproject.toml`,
-- crea carpetas para modelos locales,
-- copia `backend/config.env.example` a `backend/config.env` si hace falta,
-- detecta `ollama`, `ffmpeg` y `piper`.
-
-2. Ejecuta `.\scripts\bootstrap_models.ps1`
-Hace:
-- precarga `Whisper` local,
-- precarga `Moonshine`,
-- descarga `gemma3` en `Ollama`,
-- y te muestra lo que sigue pendiente para `Piper` y `Kokoro`.
-
-Notas:
-- `Kokoro` puede requerir un entorno Python `3.10` o `3.11`.
-- `Piper` requiere binarios o modelos externos aparte del `venv`.
-
-## Benchmarking
-El proyecto incluye un benchmark reproducible para `LLM`, `STT` y `TTS` en `backend/benchmarks/`.
-
-Sirve para:
-- comparar latencia entre modelos cloud y locales
-- medir `WER` en `STT`
-- dejar resultados en `CSV` y `JSONL`
-
-Flujo recomendado:
-1. Ejecuta `.\scripts\bootstrap_local.ps1`
-2. Ejecuta `.\scripts\bootstrap_models.ps1`
-3. Completa `backend/config.env`
-4. Corre los runners desde la raiz del repo o desde `backend/`
-
-Ejemplo rapido:
-
-```powershell
-$env:BENCHMARK_REPETITIONS='3'
-$env:STT_PROVIDER='whisper'
-& backend\.venv\Scripts\python.exe backend\benchmarks\runners\run_stt_benchmark.py
-```
-
-Salidas:
-- `backend/benchmarks/outputs/summary/*.csv`
-- `backend/benchmarks/outputs/raw/*.csv`
-
-La documentacion completa del benchmark, prerequisitos y comandos por modelo vive en [backend/benchmarks/README.md](/abs/path/c:/Users/deanv/OneDrive/Escritorio/Tilapez/ProyectoAgentesVirtuales/backend/benchmarks/README.md).
-
 ## Como funciona
 Flujo general:
-1. Unity envia texto o audio al backend.
+1. Unity envia audio al backend.
 2. Si entra audio, el backend transcribe con STT.
 3. El backend decide el `workflow`:
 - `chat`: respuesta conversacional simple.
@@ -306,11 +231,6 @@ cd backend
 .\.venv\Scripts\python.exe test_text.py
 ```
 
-Uso recomendado:
-- primero agrega uno o mas cursos por texto;
-- luego añade restricciones o preferencias;
-- finalmente confirma generacion para verificar que el backend devuelva `schedule_report`.
-
 ### Suite de tests
 ```bash
 cd backend
@@ -329,27 +249,13 @@ Archivo local:
 - `backend/config.env`
 
 Variables relevantes:
-- `LLM_PROVIDER`
-- `STT_PROVIDER`
-- `TTS_PROVIDER`
 - `LLM_API_KEY`
 - `LLM_MODEL`
-- `GEMINI_STT_MODEL`
-- `GEMINI_TTS_MODEL`
-- `GEMINI_TTS_VOICE`
-- `GROQ_API_KEY`
-- `GROQ_MODEL`
-- `GROQ_STT_MODEL`
-- `OLLAMA_MODEL`
+- `LLM_EMOTION_PROFILES`
 - `ELEVENLABS_API_KEY`
-- `STT_MODEL`
-- `TTS_MODEL`
+- `STT_MODEL_ID`
+- `TTS_MODEL_ID`
 - `TTS_VOICE_ID`
-- `WHISPER_MODEL`
-- `MOONSHINE_MODEL`
-- `PIPER_BINARY`
-- `PIPER_MODEL_PATH`
-- `KOKORO_MODEL_PATH`
 - `BACKEND_DEBUG_LOGS`
 - `LLM_RETRIES`
 - `LLM_RETRY_DELAY`
@@ -391,9 +297,9 @@ Actualmente el proyecto ya soporta:
 - borrador estructurado de cursos y restricciones
 - generacion determinista de horarios
 - salida estructurada para Unity
-- perfiles de animacion conversacionales y de apuntar (`point_lu`, `point_ru`)
+- perfiles de animacion conversacionales y de apuntar
 
 Pendientes tipicos de producto:
 - endurecer aun mas integracion Unity/backend
 - validar visualmente todos los casos del `ScheduleGridCanvas`
-- agregar demo publico en la seccion correspondiente
+
