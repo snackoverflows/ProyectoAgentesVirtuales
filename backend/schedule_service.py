@@ -4,6 +4,7 @@ from typing import Any, Dict, List, Optional, Tuple
 from constraints_eval import evaluate_soft
 from constraints_schema import canonicalize_constraints_payload, normalize_constraints, validate_constraints
 from json_payload import extract_json_object
+from supported_constraints import interpret_supported_constraints
 
 
 class ScheduleService:
@@ -75,37 +76,6 @@ class ScheduleService:
     def _normalize_course_field(self, value: Any) -> str:
         return value.strip() if isinstance(value, str) else ""
 
-    def _mentions_avoid_afternoon(self, user_text: str) -> bool:
-        lowered = (user_text or "").strip().casefold()
-        afternoon_markers = (
-            "sin tardes",
-            "sin la tarde",
-            "evitar clases en la tarde",
-            "evitar la tarde",
-            "no en la tarde",
-            "no por la tarde",
-            "no quiero clases en la tarde",
-            "no quiero ir en la tarde",
-            "solo en la mañana",
-            "solo manana",
-            "solo mañana",
-        )
-        return any(marker in lowered for marker in afternoon_markers)
-
-    def _contains_time_window_rule(self, rules: List[Dict[str, Any]], start: str, end: str, operator: str) -> bool:
-        for rule in rules:
-            if not isinstance(rule, dict):
-                continue
-            time_range = rule.get("range") or {}
-            if (
-                rule.get("type") == "time_window"
-                and rule.get("operator") == operator
-                and time_range.get("start") == start
-                and time_range.get("end") == end
-            ):
-                return True
-        return False
-
     def _apply_user_text_constraint_hints(
         self,
         user_text: str,
@@ -115,48 +85,32 @@ class ScheduleService:
         if not isinstance(parsed_state, dict):
             return parsed_state
 
-        if not self._mentions_avoid_afternoon(user_text):
-            return parsed_state
-
         hinted_state = dict(parsed_state)
         draft = self._repair_schedule_draft(hinted_state.get("draft", current_draft), current_draft)
         constraints = draft.get("constraints")
-        if not isinstance(constraints, dict):
-            constraints = self.build_default_schedule_draft()["constraints"]
-            draft["constraints"] = constraints
+        interpreted = interpret_supported_constraints(user_text, constraints)
+        if not interpreted.get("applied_constraint_ids"):
+            return parsed_state
 
-        hard_rules = constraints.get("hard")
-        if not isinstance(hard_rules, list):
-            hard_rules = []
-            constraints["hard"] = hard_rules
-
-        if not self._contains_time_window_rule(hard_rules, "12:00", "23:59", "outside"):
-            hard_rules.append(
-                {
-                    "type": "time_window",
-                    "scope": "meeting",
-                    "operator": "outside",
-                    "range": {"start": "12:00", "end": "23:59"},
-                    "reason": "Evitar clases en la tarde",
-                }
-            )
-
+        draft["constraints"] = interpreted.get("constraints", constraints)
         hinted_state["draft"] = draft
 
         assistant_message = self._normalize_course_field(hinted_state.get("assistant_message"))
-        if (
+        asks_for_manual_window = (
             "de que hora a que hora" in assistant_message.casefold()
             or "de ? a ?" in assistant_message.casefold()
             or "evitar horario" in assistant_message.casefold()
-        ):
+        )
+        detected_ids = set(interpreted.get("detected_constraint_ids") or [])
+        if "morning_only" in detected_ids and asks_for_manual_window:
             courses = draft.get("courses")
             if isinstance(courses, list) and not courses:
                 hinted_state["assistant_message"] = (
-                    "Tomé en cuenta que prefieres evitar clases en la tarde. "
+                    "Tom? en cuenta que prefieres solo clases en la ma?ana. "
                     "Ahora necesito que me indiques los cursos para seguir."
                 )
             else:
-                hinted_state["assistant_message"] = "Tomé en cuenta que prefieres evitar clases en la tarde."
+                hinted_state["assistant_message"] = "Tom? en cuenta que prefieres solo clases en la ma?ana."
 
         return hinted_state
 
