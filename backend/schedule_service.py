@@ -76,6 +76,26 @@ class ScheduleService:
     def _normalize_course_field(self, value: Any) -> str:
         return value.strip() if isinstance(value, str) else ""
 
+    def _user_requested_generation(self, user_text: str) -> bool:
+        lowered = self._normalize_course_field(user_text).casefold()
+        if not lowered:
+            return False
+
+        generation_markers = (
+            "genera",
+            "genera el horario",
+            "generar",
+            "generalo",
+            "genéralo",
+            "arma el horario",
+            "armalo",
+            "ármalo",
+            "haz el horario",
+            "haceme el horario",
+            "crea el horario",
+        )
+        return any(marker in lowered for marker in generation_markers)
+
     def _apply_user_text_constraint_hints(
         self,
         user_text: str,
@@ -209,7 +229,26 @@ class ScheduleService:
             return f"Antes de generar, me falta {first_missing}. Comparteme ese dato y sigo."
         return f"Antes de generar, me faltan algunos datos. Por ejemplo, {first_missing}. Comparteme lo que falta y sigo."
 
-    def _enforce_generation_readiness(self, state: Dict[str, Any]) -> Dict[str, Any]:
+    def _build_no_courses_message(self, assistant_message: str) -> str:
+        message = self._normalize_course_field(assistant_message)
+        if not message:
+            return "Puedo ayudarte con horarios. Dime qu? cursos quieres llevar o qu? restricci?n quieres aplicar."
+
+        lowered = message.casefold()
+        blocked_fragments = (
+            "contrato",
+            "formato del borrador",
+            "preferencia",
+            "tom? en cuenta esa preferencia",
+            "tom?? en cuenta esa preferencia",
+            "tom?? en cuenta esa preferencia",
+        )
+        if any(fragment in lowered for fragment in blocked_fragments):
+            return "Puedo ayudarte con horarios. Dime qu? cursos quieres llevar o qu? restricci?n quieres aplicar."
+
+        return message
+
+    def _enforce_generation_readiness(self, state: Dict[str, Any], user_requested_generation: bool = False) -> Dict[str, Any]:
         draft = state.get("draft")
         if not isinstance(draft, dict):
             return state
@@ -219,18 +258,14 @@ class ScheduleService:
             state["status"] = "collecting"
             state["should_generate"] = False
             state["missing_items"] = ["courses"]
-            state["assistant_message"] = "Antes de generar, necesito que me indiques los cursos."
+            state["assistant_message"] = self._build_no_courses_message(state.get("assistant_message", ""))
             return state
 
         if not courses:
             state["status"] = "collecting"
             state["should_generate"] = False
             state["missing_items"] = ["courses"]
-            assistant_message = self._normalize_course_field(state.get("assistant_message"))
-            if "tarde" in assistant_message.casefold():
-                state["assistant_message"] = f"{assistant_message} Ahora necesito que me indiques los cursos para poder armar el horario."
-            else:
-                state["assistant_message"] = "Tomé en cuenta esa preferencia. Ahora necesito que me indiques los cursos para poder armar el horario."
+            state["assistant_message"] = self._build_no_courses_message(state.get("assistant_message", ""))
             return state
 
         missing_items = self._collect_course_missing_items(courses)
@@ -239,6 +274,12 @@ class ScheduleService:
             state["should_generate"] = False
             state["missing_items"] = missing_items
             state["assistant_message"] = self._build_missing_course_data_message(missing_items)
+            return state
+
+        state["missing_items"] = []
+        if user_requested_generation:
+            state["status"] = "awaiting_confirmation"
+            state["should_generate"] = True
 
         return state
 
@@ -253,7 +294,13 @@ class ScheduleService:
 
         return "Tomé en cuenta esa preferencia. Sigamos ajustando cursos y restricciones para dejar listo el horario."
 
-    def enforce_schedule_contract(self, parsed_state: Dict[str, Any], current_draft: Dict[str, Any], warnings: List[str]) -> Dict[str, Any]:
+    def enforce_schedule_contract(
+        self,
+        parsed_state: Dict[str, Any],
+        current_draft: Dict[str, Any],
+        warnings: List[str],
+        user_requested_generation: bool = False,
+    ) -> Dict[str, Any]:
         assistant_message = parsed_state.get("assistant_message") or "Sigo construyendo el borrador del horario."
         draft = self._repair_schedule_draft(parsed_state.get("draft", current_draft), current_draft)
         state = {
@@ -275,7 +322,7 @@ class ScheduleService:
             state["assistant_message"] = self._build_user_safe_contract_message(draft, assistant_message)
             return state
 
-        return self._enforce_generation_readiness(state)
+        return self._enforce_generation_readiness(state, user_requested_generation=user_requested_generation)
 
     def build_schedule_report(self, payload: Dict[str, Any]) -> Dict[str, Any]:
         courses = payload.get("courses", [])
@@ -428,7 +475,13 @@ class ScheduleService:
 
         parsed_state = self._apply_user_text_constraint_hints(user_text, parsed_state, current_draft)
         log_debug("llm.schedule.parsed", parsed_state)
-        state = self.enforce_schedule_contract(parsed_state, current_draft, warnings)
+        user_requested_generation = self._user_requested_generation(user_text)
+        state = self.enforce_schedule_contract(
+            parsed_state,
+            current_draft,
+            warnings,
+            user_requested_generation=user_requested_generation,
+        )
         emotion_profile = normalize_emotion_profile(parsed_state.get("emotion_profile", self.default_emotion_profile))
 
         schedule_report: Optional[Dict[str, Any]] = None

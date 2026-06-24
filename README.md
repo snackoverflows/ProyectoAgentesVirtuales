@@ -11,7 +11,7 @@ La arquitectura actual no le pide al LLM que invente horarios finales. El LLM in
 
 ## Demo
 Enlace al demo:
-- [Chippy - Agente de Generación de horarios](https://www.youtube.com/watch?v=OS5VJIIhZRk)
+- [Chippy - Agente de Generación de horarios](https://youtu.be/-lzNQfhWNWU)
 
 ## Inicio rapido
 Para correr el proyecto de forma local:

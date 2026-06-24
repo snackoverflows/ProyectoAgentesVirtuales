@@ -154,15 +154,15 @@ namespace ProyectoAgentesVirtuales.UnityBridge
         [SerializeField] private float titleHeight = 42f;
         [SerializeField] private float subtitleHeight = 28f;
         [SerializeField] private int maxVisibleSchedules = 3;
-        [SerializeField] private float controlButtonWidth = 160f;
-        [SerializeField] private float controlButtonHeight = 42f;
-        [SerializeField] private float controlButtonSpacing = 10f;
+        [SerializeField] private float controlButtonWidth = 184f;
+        [SerializeField] private float controlButtonHeight = 50f;
+        [SerializeField] private float controlButtonSpacing = 12f;
         [SerializeField] private Vector2 controlsOffset = new Vector2(20f, 20f);
-        [SerializeField] private float constraintsPanelWidth = 560f;
-        [SerializeField] private float constraintsPanelHeight = 320f;
+        [SerializeField] private float constraintsPanelWidth = 620f;
+        [SerializeField] private float constraintsPanelHeight = 360f;
         [SerializeField] private Vector2 constraintsPanelOffset = new Vector2(20f, 78f);
-        [SerializeField] private float coursesPanelWidth = 680f;
-        [SerializeField] private float coursesPanelHeight = 360f;
+        [SerializeField] private float coursesPanelWidth = 740f;
+        [SerializeField] private float coursesPanelHeight = 410f;
         [SerializeField] private Vector2 coursesPanelOffset = new Vector2(600f, 78f);
 
         [Header("Colors")]
@@ -726,11 +726,11 @@ namespace ProyectoAgentesVirtuales.UnityBridge
             leftFitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
             leftFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
-            constraintsButton = CreateControlButton(controlsLeftObject.transform, "ToggleConstraintsButton", "Restricciones", 160f);
+            constraintsButton = CreateControlButton(controlsLeftObject.transform, "ToggleConstraintsButton", "Restricciones", 184f);
             constraintsButton.onClick.AddListener(ToggleConstraintsVisibility);
             constraintsButtonLabel = constraintsButton.GetComponentInChildren<TMP_Text>(true);
 
-            coursesButton = CreateControlButton(controlsLeftObject.transform, "ToggleCoursesButton", "Cursos", 130f);
+            coursesButton = CreateControlButton(controlsLeftObject.transform, "ToggleCoursesButton", "Cursos", 150f);
             coursesButton.onClick.AddListener(ToggleCoursesVisibility);
             coursesButtonLabel = coursesButton.GetComponentInChildren<TMP_Text>(true);
 
@@ -785,7 +785,7 @@ namespace ProyectoAgentesVirtuales.UnityBridge
             navFitter.horizontalFit = ContentSizeFitter.FitMode.PreferredSize;
             navFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
 
-            previousButton = CreateControlButton(navObject.transform, "PreviousScheduleButton", "Anterior", 130f);
+            previousButton = CreateControlButton(navObject.transform, "PreviousScheduleButton", "Anterior", 148f);
             previousButton.onClick.AddListener(ShowPreviousSchedule);
             previousButtonLabel = previousButton.GetComponentInChildren<TMP_Text>(true);
 
@@ -802,10 +802,10 @@ namespace ProyectoAgentesVirtuales.UnityBridge
                 titleLayout.flexibleWidth = 1f;
             }
 
-            pageLabel = CreateLabel(navObject.transform, "PageLabel", "1/1", 26, FontStyles.Bold, new Color(1f, 1f, 1f, 0.9f));
+            pageLabel = CreateLabel(navObject.transform, "PageLabel", "1/1", 28, FontStyles.Bold, new Color(1f, 1f, 1f, 0.9f));
             AddLayout(pageLabel.rectTransform, controlButtonHeight);
 
-            nextButton = CreateControlButton(navObject.transform, "NextScheduleButton", "Siguiente", 130f);
+            nextButton = CreateControlButton(navObject.transform, "NextScheduleButton", "Siguiente", 148f);
             nextButton.onClick.AddListener(ShowNextSchedule);
             nextButtonLabel = nextButton.GetComponentInChildren<TMP_Text>(true);
 
@@ -838,8 +838,8 @@ namespace ProyectoAgentesVirtuales.UnityBridge
             panelImage.color = new Color(0.09f, 0.10f, 0.13f, 0.96f);
 
             VerticalLayoutGroup layout = panelObject.AddComponent<VerticalLayoutGroup>();
-            layout.padding = new RectOffset(16, 16, 16, 16);
-            layout.spacing = 8f;
+            layout.padding = new RectOffset(20, 20, 20, 20);
+            layout.spacing = 10f;
             layout.childAlignment = TextAnchor.UpperLeft;
             layout.childControlHeight = true;
             layout.childControlWidth = true;
@@ -850,15 +850,15 @@ namespace ProyectoAgentesVirtuales.UnityBridge
             fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
             fitter.verticalFit = ContentSizeFitter.FitMode.Unconstrained;
 
-            TMP_Text title = CreateLabel(panelObject.transform, "ConstraintsTitle", "Restricciones activas", 24, FontStyles.Bold, Color.white);
-            AddLayout(title.rectTransform, 30f);
+            TMP_Text title = CreateLabel(panelObject.transform, "ConstraintsTitle", "Restricciones activas", 28, FontStyles.Bold, Color.white);
+            AddLayout(title.rectTransform, 36f);
 
-            constraintsText = CreateLabel(panelObject.transform, "ConstraintsText", "Sin restricciones cargadas.", 18, FontStyles.Normal, new Color(0.92f, 0.94f, 0.97f, 0.95f));
+            constraintsText = CreateLabel(panelObject.transform, "ConstraintsText", "Sin restricciones cargadas.", 21, FontStyles.Normal, new Color(0.92f, 0.94f, 0.97f, 0.95f));
             constraintsText.alignment = TextAlignmentOptions.TopLeft;
             constraintsText.textWrappingMode = TextWrappingModes.Normal;
-            constraintsText.fontSizeMin = 14;
-            constraintsText.fontSizeMax = 18;
-            AddLayout(constraintsText.rectTransform, Mathf.Max(120f, constraintsPanel.sizeDelta.y - 60f));
+            constraintsText.fontSizeMin = 17;
+            constraintsText.fontSizeMax = 21;
+            AddLayout(constraintsText.rectTransform, Mathf.Max(150f, constraintsPanel.sizeDelta.y - 76f));
         }
 
         private void BuildCoursesPanel()
@@ -887,8 +887,8 @@ namespace ProyectoAgentesVirtuales.UnityBridge
             panelImage.color = new Color(0.09f, 0.10f, 0.13f, 0.96f);
 
             VerticalLayoutGroup layout = panelObject.AddComponent<VerticalLayoutGroup>();
-            layout.padding = new RectOffset(16, 16, 16, 16);
-            layout.spacing = 8f;
+            layout.padding = new RectOffset(20, 20, 20, 20);
+            layout.spacing = 10f;
             layout.childAlignment = TextAnchor.UpperLeft;
             layout.childControlHeight = true;
             layout.childControlWidth = true;
@@ -899,15 +899,15 @@ namespace ProyectoAgentesVirtuales.UnityBridge
             fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
             fitter.verticalFit = ContentSizeFitter.FitMode.Unconstrained;
 
-            TMP_Text title = CreateLabel(panelObject.transform, "CoursesTitle", "Cursos en consideración", 24, FontStyles.Bold, Color.white);
-            AddLayout(title.rectTransform, 30f);
+            TMP_Text title = CreateLabel(panelObject.transform, "CoursesTitle", "Cursos en consideración", 28, FontStyles.Bold, Color.white);
+            AddLayout(title.rectTransform, 36f);
 
-            coursesText = CreateLabel(panelObject.transform, "CoursesText", "Sin cursos cargados.", 18, FontStyles.Normal, new Color(0.92f, 0.94f, 0.97f, 0.95f));
+            coursesText = CreateLabel(panelObject.transform, "CoursesText", "Sin cursos cargados.", 21, FontStyles.Normal, new Color(0.92f, 0.94f, 0.97f, 0.95f));
             coursesText.alignment = TextAlignmentOptions.TopLeft;
             coursesText.textWrappingMode = TextWrappingModes.Normal;
-            coursesText.fontSizeMin = 14;
-            coursesText.fontSizeMax = 18;
-            AddLayout(coursesText.rectTransform, Mathf.Max(120f, coursesPanel.sizeDelta.y - 60f));
+            coursesText.fontSizeMin = 17;
+            coursesText.fontSizeMax = 21;
+            AddLayout(coursesText.rectTransform, Mathf.Max(170f, coursesPanel.sizeDelta.y - 76f));
         }
 
         private Button CreateControlButton(Transform parent, string objectName, string text, float width)
@@ -933,7 +933,7 @@ namespace ProyectoAgentesVirtuales.UnityBridge
             layout.preferredHeight = controlButtonHeight;
             layout.minHeight = controlButtonHeight;
 
-            TMP_Text label = CreateLabel(buttonObject.transform, objectName + "Label", text, 20, FontStyles.Bold, Color.white);
+            TMP_Text label = CreateLabel(buttonObject.transform, objectName + "Label", text, 22, FontStyles.Bold, Color.white);
             label.rectTransform.anchorMin = Vector2.zero;
             label.rectTransform.anchorMax = Vector2.one;
             label.rectTransform.offsetMin = Vector2.zero;
@@ -1445,6 +1445,18 @@ namespace ProyectoAgentesVirtuales.UnityBridge
             return $"{op} {target} (peso {weight}, prioridad {priority}).";
         }
 
+        private string FormatScheduleBlockLabel(ScheduleBlock block)
+        {
+            if (block == null)
+            {
+                return "Desconocido";
+            }
+
+            string courseName = string.IsNullOrWhiteSpace(block.course) ? "Desconocido" : block.course.Trim();
+            string group = string.IsNullOrWhiteSpace(block.group) ? string.Empty : block.group.Trim();
+            return string.IsNullOrWhiteSpace(group) ? courseName : $"{courseName} ({group})";
+        }
+
         private string NormalizeOperator(string value)
         {
             return string.IsNullOrWhiteSpace(value) ? "" : value.Trim().ToLowerInvariant();
@@ -1766,7 +1778,7 @@ namespace ProyectoAgentesVirtuales.UnityBridge
                         continue;
                     }
 
-                    string courseName = string.IsNullOrWhiteSpace(block.course) ? "Desconocido" : block.course.Trim();
+                    string courseName = FormatScheduleBlockLabel(block);
                     if (cell.Label != null)
                     {
                         if (string.IsNullOrWhiteSpace(cell.Label.text))
